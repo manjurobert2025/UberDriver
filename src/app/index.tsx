@@ -18,9 +18,13 @@ const [password, setPassword] = useState("");
             password
         });
 
-        const token = response.data;
+        const { token, driverId } = response.data;
 
-       await AsyncStorage.setItem("token", token);
+await AsyncStorage.setItem("token", token);
+await AsyncStorage.setItem("driverId", driverId);
+
+console.log("Token:", token);
+console.log("DriverId:", driverId);
 
       alert("Login Successful!");
       router.replace("/driver-home");
