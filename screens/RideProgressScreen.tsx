@@ -1,0 +1,270 @@
+import { useState } from "react";
+import {
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+
+const RideProgressScreen = ({ route }: any) => {
+  const { rideId, pickupLocation, destination } = route.params;
+
+  const [rideStatus, setRideStatus] = useState("Accepted");
+
+  const handleStartRide = () => {
+    console.log("Start ride:", rideId);
+
+    // We'll connect the API next
+  };
+
+  const handleCompleteRide = () => {
+    console.log("Complete ride:", rideId);
+
+    // We'll connect the API next
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Current Ride</Text>
+      </View>
+
+      {/* Status */}
+      <View style={styles.statusContainer}>
+        <Text style={styles.statusText}>
+          {rideStatus === "Accepted"
+            ? "RIDE ACCEPTED"
+            : rideStatus === "InProgress"
+            ? "RIDE IN PROGRESS"
+            : "TRIP COMPLETED"}
+        </Text>
+      </View>
+
+      {/* Location Card */}
+      <View style={styles.card}>
+
+        <Text style={styles.label}>PICKUP</Text>
+
+        <View style={styles.locationRow}>
+          <View style={styles.dot} />
+
+          <Text style={styles.locationText}>
+            {pickupLocation || "Pickup location"}
+          </Text>
+        </View>
+
+        <View style={styles.line} />
+
+        <Text style={styles.label}>DESTINATION</Text>
+
+        <View style={styles.locationRow}>
+          <View style={styles.destinationDot} />
+
+          <Text style={styles.locationText}>
+            {destination || "Destination"}
+          </Text>
+        </View>
+
+      </View>
+
+      {/* Progress */}
+      <View style={styles.progressCard}>
+
+        <Text style={styles.sectionTitle}>Trip Status</Text>
+
+        <Text style={styles.completedStep}>
+          ✓ Request received
+        </Text>
+
+        <Text style={styles.completedStep}>
+          ✓ Ride accepted
+        </Text>
+
+        <Text
+          style={
+            rideStatus === "InProgress"
+              ? styles.completedStep
+              : styles.pendingStep
+          }
+        >
+          {rideStatus === "InProgress" ? "✓" : "○"} Ride started
+        </Text>
+
+        <Text style={styles.pendingStep}>
+          ○ Trip completed
+        </Text>
+
+      </View>
+
+      {/* Bottom Button */}
+      <View style={styles.bottomContainer}>
+
+        {rideStatus === "Accepted" && (
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={handleStartRide}
+          >
+            <Text style={styles.buttonText}>
+              START RIDE
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {rideStatus === "InProgress" && (
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={handleCompleteRide}
+          >
+            <Text style={styles.buttonText}>
+              COMPLETE RIDE
+            </Text>
+          </TouchableOpacity>
+        )}
+
+      </View>
+
+    </SafeAreaView>
+  );
+};
+
+export default RideProgressScreen;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F5F6F8",
+    padding: 20,
+  },
+
+  header: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#111",
+  },
+
+  statusContainer: {
+    alignSelf: "center",
+    backgroundColor: "#E8F5E9",
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 25,
+  },
+
+  statusText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#2E7D32",
+  },
+
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+
+    elevation: 3,
+  },
+
+  label: {
+    fontSize: 12,
+    color: "#777",
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#2E7D32",
+    marginRight: 12,
+  },
+
+  destinationDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "#D32F2F",
+    marginRight: 12,
+  },
+
+  locationText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#222",
+    flex: 1,
+  },
+
+  line: {
+    width: 2,
+    height: 28,
+    backgroundColor: "#DDD",
+    marginLeft: 5,
+    marginVertical: 5,
+  },
+
+  progressCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
+  },
+
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 18,
+  },
+
+  completedStep: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#2E7D32",
+    marginBottom: 15,
+  },
+
+  pendingStep: {
+    fontSize: 15,
+    color: "#888",
+    marginBottom: 15,
+  },
+
+  bottomContainer: {
+    marginTop: "auto",
+    paddingBottom: 15,
+  },
+
+  primaryButton: {
+    backgroundColor: "#111",
+    paddingVertical: 17,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  buttonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+});
