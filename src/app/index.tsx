@@ -77,7 +77,13 @@ console.log("DriverId:", driverId);
 >
     <Text style={styles.buttonText}>Login</Text>
 </Pressable>
-
+<Pressable
+  onPress={() => router.push("/forgot-password")}
+>
+  <Text style={styles.forgotPassword}>
+    Forgot Password?
+  </Text>
+</Pressable>
     
         <Pressable onPress={() => router.push("/register")}>
   <Text style={styles.register}>
@@ -100,7 +106,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F6F8',
     padding: 20,
   },
-
+  forgotPassword: {
+  textAlign: "right",
+  marginTop: 8,
+  marginBottom: 15,
+  fontSize: 14,
+  fontWeight: "600",
+},
   card: {
     width: '100%',
     maxWidth: 380,
