@@ -1,5 +1,6 @@
+import axios from "axios";
 import { useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -15,14 +16,122 @@ const RideProgressScreen = () => {
       destination: string;
     }>();
 
-  const [rideStatus, setRideStatus] = useState("Accepted");
+const [rideStatus, setRideStatus] = useState("");
+useEffect(() => {
+  const loadRideStatus = async () => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/Ride/${rideId}`
+      );
 
-  const handleCompleteRide = () => {
-    console.log("Complete ride:", rideId);
+      console.log("Current ride:", response.data);
+      console.log("STATUS VALUE:", response.data.status);
+      console.log("STATUS TYPE:", typeof response.data.status);
 
-    // We'll connect the API next
+      const status = response.data.status;
+
+switch (status) {
+  case 2:
+    setRideStatus("Accepted");
+    break;
+
+  case 3:
+    setRideStatus("DriverArrived");
+    break;
+
+  case 4:
+    setRideStatus("InProgress");
+    break;
+
+  case 5:
+    setRideStatus("Completed");
+    break;
+
+  case 6:
+    setRideStatus("Cancelled");
+    break;
+
+  case 7:
+    setRideStatus("Rejected");
+    break;
+
+  case 8:
+    setRideStatus("Requested");
+    break;
+
+  default:
+    setRideStatus("Pending");
+    break;
+}
+
+    } catch (error) {
+      console.log("Error loading ride status:", error);
+    }
   };
 
+  if (rideId) {
+    loadRideStatus();
+  }
+
+}, [rideId]);
+
+const API_URL = "https://localhost:7197/api";
+
+const handleStartRide = async () => {
+  try {
+    console.log("START button clicked");
+    console.log("RideId:", rideId);
+
+    const response = await axios.post(
+      `${API_URL}/Ride/${rideId}/start`
+    );
+
+    console.log("Start Ride API response:", response.data);
+
+    // Only change UI AFTER backend succeeds
+    setRideStatus("InProgress");
+
+    alert("Ride started successfully");
+
+  } catch (error: any) {
+    console.log("Start Ride API error:", error);
+
+    if (error.response) {
+      console.log("Status:", error.response.status);
+      console.log("Data:", error.response.data);
+    }
+
+    alert("Unable to start ride");
+  }
+};
+
+const handleCompleteRide = async () => {
+  try {
+    console.log("COMPLETE RIDE clicked");
+    console.log("RideId:", rideId);
+
+    const response = await axios.post(
+      `${API_URL}/Ride/${rideId}/complete`
+    );
+
+    console.log("Complete ride response:", response.data);
+
+    // Change UI ONLY after backend succeeds
+    setRideStatus("Completed");
+
+    alert("Ride completed successfully");
+
+  } catch (error: any) {
+    console.log("Complete ride error:", error);
+
+    if (error.response) {
+      console.log("Status:", error.response.status);
+      console.log("Data:", error.response.data);
+    }
+
+    alert("Unable to complete ride");
+  }
+};
   return (
     <SafeAreaView style={styles.container}>
 
@@ -69,62 +178,58 @@ const RideProgressScreen = () => {
 
       </View>
 
-      {/* Progress */}
-      <View style={styles.progressCard}>
+    {/* Progress */}
+<View style={styles.progressCard}>
 
-        <Text style={styles.sectionTitle}>Trip Status</Text>
+  <Text style={styles.sectionTitle}>Trip Status</Text>
 
-        <Text style={styles.completedStep}>
-          ✓ Request received
-        </Text>
+  {/* Request received */}
+  <Text style={styles.completedStep}>
+    ✓ Request received
+  </Text>
 
-        <Text style={styles.completedStep}>
-          ✓ Ride accepted
-        </Text>
+  {/* Ride accepted */}
+  <Text style={styles.completedStep}>
+    ✓ Ride accepted
+  </Text>
 
-        <Text
-          style={
-            rideStatus === "InProgress"
-              ? styles.completedStep
-              : styles.pendingStep
-          }
-        >
-          {rideStatus === "InProgress" ? "✓" : "○"} Ride started
-        </Text>
+  {/* Ride started */}
+  <Text
+    style={
+      rideStatus === "InProgress" || rideStatus === "Completed"
+        ? styles.completedStep
+        : styles.pendingStep
+    }
+  >
+    {rideStatus === "InProgress" || rideStatus === "Completed"
+      ? "✓"
+      : "○"}{" "}
+    Ride started
+  </Text>
 
-        <Text style={styles.pendingStep}>
-          ○ Trip completed
-        </Text>
+  {/* Trip completed */}
+  <Text
+    style={
+      rideStatus === "Completed"
+        ? styles.completedStep
+        : styles.pendingStep
+    }
+  >
+    {rideStatus === "Completed" ? "✓" : "○"} Trip completed
+  </Text>
 
-      </View>
-
-      {/* Bottom Button */}
-      <View style={styles.bottomContainer}>
-
-        {rideStatus === "Accepted" && (
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={handleStartRide}
-          >
-            <Text style={styles.buttonText}>
-              START RIDE
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {rideStatus === "InProgress" && (
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={handleCompleteRide}
-          >
-            <Text style={styles.buttonText}>
-              COMPLETE RIDE
-            </Text>
-          </TouchableOpacity>
-        )}
-
-      </View>
-
+</View>
+{/* Complete Ride Button */}
+{rideStatus === "InProgress" && (
+  <TouchableOpacity
+    style={styles.primaryButton}
+    onPress={handleCompleteRide}
+  >
+    <Text style={styles.buttonText}>
+      COMPLETE RIDE
+    </Text>
+  </TouchableOpacity>
+)}
     </SafeAreaView>
   );
 };
@@ -250,9 +355,9 @@ const styles = StyleSheet.create({
   },
 
   bottomContainer: {
-    marginTop: "auto",
-    paddingBottom: 15,
-  },
+  marginTop: 20,
+  paddingBottom: 15,
+},
 
   primaryButton: {
     backgroundColor: "#111",

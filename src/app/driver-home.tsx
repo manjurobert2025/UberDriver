@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import * as Location from "expo-location";
+import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -12,7 +13,6 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 export default function DriverHome({ route, navigation }: any) { 
   const [isOnline, setIsOnline] = useState(true);
   const API_URL = "https://localhost:7197/api";
@@ -141,17 +141,17 @@ const acceptRide = async (rideId: string) => {
     );
 
     Alert.alert("Success", "Ride accepted successfully");
-// Navigate to Ride Progress screen
-    navigation.navigate("RideProgress", {
-       rideId,
-      pickupLocation: pendingRide.pickupLocation,
-      destination: pendingRide.destination,
-    });
-    // Remove the pending ride card
-    setPendingRide(null);
 
-    // Later we'll navigate to RideProgressScreen
-    // navigation.navigate("RideProgress", { rideId });
+    router.push({
+      pathname: "../../ride-progress",
+      params: {
+        rideId: rideId,
+        pickupLocation: pendingRide.pickupLocation,
+        destination: pendingRide.dropoffLocation,
+      },
+    });
+
+    setPendingRide(null);
 
   } catch (error) {
     console.log(error);
@@ -184,12 +184,11 @@ const rejectRide = async (rideId: string) => {
   }
 };
   const toggleStatus = async (value: boolean) => {
-  setIsOnline(value);
-  const newStatus = !isOnline;
   try {
     console.log("driverId:", driverId);
     console.log("token:", token);
-    console.log("isOnline:", value);
+    console.log("Setting online status:", value);
+
     await axios.put(
       `${API_URL}/driver/${driverId}/status`,
       {
@@ -202,17 +201,21 @@ const rejectRide = async (rideId: string) => {
       }
     );
 
-    setIsOnline(newStatus);
+    // Update state only after API succeeds
+    setIsOnline(value);
 
-    if (newStatus) {
+    if (value) {
       startLocationUpdates();
     } else {
       stopLocationUpdates();
+      setPendingRide(null);
     }
+
   } catch (error) {
-    console.log(error);
+    console.log("Status update error:", error);
+    Alert.alert("Error", "Unable to update driver status");
   }
-  };
+};
   return (
     
     <SafeAreaView style={styles.container}>
@@ -240,7 +243,7 @@ const rejectRide = async (rideId: string) => {
 
         <Text>Pickup: {pendingRide.pickupLocation}</Text>
 
-        <Text>Destination: {pendingRide.destination}</Text>
+        <Text>Destination: {pendingRide.dropoffLocation}</Text>
 
         <Button
           title="Accept"
