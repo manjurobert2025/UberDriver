@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -320,20 +321,21 @@ const rejectRide = async (rideId: string) => {
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
 
-        <View style={styles.navButton}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navText}>Home</Text>
-        </View>
+        <Pressable
+  style={styles.navButton}
+  onPress={() => router.push("/")}
+>
+  <Text style={styles.navIcon}>🏠</Text>
+  <Text style={styles.navText}>Home</Text>
+</Pressable>       
 
-        <View style={styles.navButton}>
-          <Text style={styles.navIcon}>📜</Text>
-          <Text style={styles.navText}>History</Text>
-        </View>
-
-        <View style={styles.navButton}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={styles.navText}>Profile</Text>
-        </View>
+      <Pressable
+  style={styles.navButton}
+  onPress={() => router.push("/profile")}
+>
+  <Text style={styles.navIcon}>👤</Text>
+  <Text style={styles.navText}>Profile</Text>
+</Pressable>
 
       </View>
     </SafeAreaView>

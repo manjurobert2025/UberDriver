@@ -1,15 +1,17 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { registerDriver } from "../../services/driverService";
+
 export default function DriverDetailsScreen() {
+  // Get userId passed from register.tsx
   const { userId } = useLocalSearchParams();
 
   const [licenseNumber, setLicenseNumber] = useState("");
@@ -21,37 +23,93 @@ export default function DriverDetailsScreen() {
   const [seatingCapacity, setSeatingCapacity] = useState("");
   const [vehicleType, setVehicleType] = useState("");
 
- const handleFinish = async () => {
-  const driver = {
-    userId,
-    licenseNumber,
-    make,
-    model,
-    year: Number(year),
-    color,
-    registrationNumber,
-    seatingCapacity: Number(seatingCapacity),
-    vehicleType,
-  };
+  const handleFinish = async () => {
+    // Convert userId to a normal string
+    const actualUserId = Array.isArray(userId)
+      ? userId[0]
+      : userId;
 
-  try {
-    const response = await registerDriver(driver);
+    console.log("USER ID RECEIVED:", actualUserId);
 
-    console.log(response.data);
-
-    alert("Driver Registered Successfully!");
-
-    router.replace("/");
-  } catch (error: any) {
-    console.error(error);
-
-    if (error.response) {
-      alert(error.response.data);
-    } else {
-      alert("Unable to connect to server.");
+    // Check if userId exists
+    if (!actualUserId) {
+      alert("User ID is missing.");
+      console.log("ERROR: User ID is missing");
+      return;
     }
-  }
-};
+
+    // Basic validation
+    if (
+      !licenseNumber ||
+      !make ||
+      !model ||
+      !year ||
+      !color ||
+      !registrationNumber ||
+      !seatingCapacity ||
+      !vehicleType
+    ) {
+      alert("Please fill all fields.");
+      return;
+    }
+
+    const driver = {
+      userId: actualUserId,
+      licenseNumber: licenseNumber,
+      make: make,
+      model: model,
+      year: Number(year),
+      color: color,
+      registrationNumber: registrationNumber,
+      seatingCapacity: Number(seatingCapacity),
+      vehicleType: vehicleType,
+    };
+
+    console.log("DRIVER PAYLOAD:", driver);
+
+    try {
+      const response = await registerDriver(driver);
+
+      console.log("DRIVER RESPONSE:", response.data);
+
+      alert("Driver Registered Successfully!");
+
+      router.replace("/");
+    } catch (error: any) {
+      console.log("DRIVER REGISTRATION FAILED");
+
+      console.log(
+        "STATUS:",
+        error.response?.status
+      );
+
+      console.log(
+        "RESPONSE DATA:",
+        error.response?.data
+      );
+
+      console.log(
+        "REQUEST DATA:",
+        error.config?.data
+      );
+
+      console.log(
+        "REQUEST URL:",
+        error.config?.url
+      );
+
+      if (error.response?.data) {
+        alert(
+          JSON.stringify(error.response.data)
+        );
+      } else {
+        alert(
+          error.message ||
+            "Unable to connect to server."
+        );
+      }
+    }
+  };
 
   return (
     <ScrollView
@@ -62,11 +120,15 @@ export default function DriverDetailsScreen() {
 
         <Text style={styles.logo}>🚖</Text>
 
-        <Text style={styles.title}>Driver Details</Text>
+        <Text style={styles.title}>
+          Driver Details
+        </Text>
 
         <Text style={styles.subtitle}>
           Complete your vehicle information
         </Text>
+
+        {/* License Number */}
 
         <TextInput
           placeholder="License Number"
@@ -75,6 +137,8 @@ export default function DriverDetailsScreen() {
           style={styles.input}
         />
 
+        {/* Vehicle Make */}
+
         <TextInput
           placeholder="Vehicle Make"
           value={make}
@@ -82,12 +146,16 @@ export default function DriverDetailsScreen() {
           style={styles.input}
         />
 
+        {/* Vehicle Model */}
+
         <TextInput
           placeholder="Vehicle Model"
           value={model}
           onChangeText={setModel}
           style={styles.input}
         />
+
+        {/* Year */}
 
         <TextInput
           placeholder="Year"
@@ -97,6 +165,8 @@ export default function DriverDetailsScreen() {
           style={styles.input}
         />
 
+        {/* Color */}
+
         <TextInput
           placeholder="Color"
           value={color}
@@ -104,12 +174,16 @@ export default function DriverDetailsScreen() {
           style={styles.input}
         />
 
+        {/* Registration Number */}
+
         <TextInput
           placeholder="Registration Number"
           value={registrationNumber}
           onChangeText={setRegistrationNumber}
           style={styles.input}
         />
+
+        {/* Seating Capacity */}
 
         <TextInput
           placeholder="Seating Capacity"
@@ -119,12 +193,16 @@ export default function DriverDetailsScreen() {
           style={styles.input}
         />
 
+        {/* Vehicle Type */}
+
         <TextInput
           placeholder="Vehicle Type (Car / Auto / Bike)"
           value={vehicleType}
           onChangeText={setVehicleType}
           style={styles.input}
         />
+
+        {/* Finish Registration Button */}
 
         <TouchableOpacity
           style={styles.button}
@@ -135,7 +213,11 @@ export default function DriverDetailsScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.back()}>
+        {/* Back Button */}
+
+        <TouchableOpacity
+          onPress={() => router.back()}
+        >
           <Text style={styles.backText}>
             Back
           </Text>

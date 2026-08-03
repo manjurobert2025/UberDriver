@@ -72,18 +72,19 @@ console.log("DriverId:", driverId);
     secureTextEntry
 />
 <Pressable
-    style={styles.button}
-    onPress={handleLogin}
->
-    <Text style={styles.buttonText}>Login</Text>
-</Pressable>
-<Pressable
   onPress={() => router.push("/forgot-password")}
 >
   <Text style={styles.forgotPassword}>
     Forgot Password?
   </Text>
 </Pressable>
+<Pressable
+    style={styles.button}
+    onPress={handleLogin}
+>
+    <Text style={styles.buttonText}>Login</Text>
+</Pressable>
+
     
         <Pressable onPress={() => router.push("/register")}>
   <Text style={styles.register}>

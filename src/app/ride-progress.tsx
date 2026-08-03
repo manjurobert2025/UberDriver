@@ -1,12 +1,13 @@
 import axios from "axios";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 const RideProgressScreen = () => {
   const { rideId, pickupLocation, destination } =
@@ -139,6 +140,26 @@ const handleCompleteRide = async () => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Current Ride</Text>
       </View>
+{/* ADD NAVIGATION HERE */}
+    <View style={styles.bottomNav}>
+
+      <Pressable
+        style={styles.navButton}
+        onPress={() => router.push("/")}
+      >
+        <Text style={styles.navIcon}>🏠</Text>
+        <Text style={styles.navText}>Home</Text>
+      </Pressable>    
+
+      <Pressable
+        style={styles.navButton}
+        onPress={() => router.push("/profile")}
+      >
+        <Text style={styles.navIcon}>👤</Text>
+        <Text style={styles.navText}>Profile</Text>
+      </Pressable>
+
+    </View>
 
       {/* Status */}
       <View style={styles.statusContainer}>
@@ -328,7 +349,30 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     marginVertical: 5,
   },
+bottomNav: {
+  flexDirection: "row",
+  justifyContent: "space-around",
+  alignItems: "center",
+  borderTopWidth: 1,
+  borderTopColor: "#ddd",
+  backgroundColor: "#fff",
+  paddingVertical: 12,
+},
 
+navButton: {
+  flex: 1,
+  alignItems: "center",
+},
+
+navIcon: {
+  fontSize: 24,
+  marginBottom: 4,
+},
+
+navText: {
+  fontSize: 14,
+  fontWeight: "500",
+},
   progressCard: {
     backgroundColor: "#FFF",
     borderRadius: 16,

@@ -1,12 +1,12 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { registerUser } from "../../services/authService";
 
@@ -30,27 +30,32 @@ export default function RegisterScreen() {
   try {
     const response = await registerUser(user);
 
-    console.log("Registration Success:", response.data);
+    console.log("REGISTRATION RESPONSE:", response.data);
+
+    const userId = response.data.message;
+
+    console.log("NEW USER ID:", userId);
 
     alert("Registration Successful");
 
     router.push({
       pathname: "/driver-details",
       params: {
-        userId: response.data,
+        userId: userId,
       },
     });
+
   } catch (error: any) {
-    console.log(error);
+    console.log("REGISTRATION ERROR:", error);
 
     if (error.response) {
-      alert(error.response.data);
+      console.log("ERROR RESPONSE:", error.response.data);
+      alert(JSON.stringify(error.response.data));
     } else {
       alert(error.message);
     }
   }
 };
-
   return (
     <ScrollView
       contentContainerStyle={styles.container}
