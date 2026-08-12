@@ -1,1254 +1,150 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
-import * as Location from "expo-location";
-import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-
-import DriverMap from "../components/DriverMap.web";
-
+import { useEffect, useState } from "react";
 import {
   Alert,
-  Pressable,
-  ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
 
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  startSignalR,
+  stopSignalR,
+} from "../../services/signalRService";
 
+export default function DriverHome() {
+  const [driverId, setDriverId] =
+    useState<string | null>(null);
 
-export default function DriverHome({ route, navigation }: any) {
-
-  const [isOnline, setIsOnline] = useState(true);
-
-  /*
-   * Backend running on your PC.
-   *
-   * Your phone has already successfully opened:
-   *
-   * http://192.168.1.2:5150/swagger
-   */
-  const API_URL = "http://192.168.1.2:5150/api";
-
-  const [driverId, setDriverId] = useState("");
-
-  const [token, setToken] = useState("");
-
-  const [loading, setLoading] = useState(false);
-
-  const [pendingRide, setPendingRide] =
-    useState<any>(null);
-
-  const [currentLocation, setCurrentLocation] =
-    useState<{
-      latitude: number;
-      longitude: number;
-    } | null>(null);
-
-  const intervalRef =
-    useRef<ReturnType<typeof setInterval> | null>(null);
-
-
-  /* =========================================
-     LOAD DRIVER DATA
-     ========================================= */
+  const [signalRConnected, setSignalRConnected] =
+    useState(false);
 
   useEffect(() => {
-
     let mounted = true;
 
-    const loadData = async () => {
-
+    const connectDriver = async () => {
       try {
-
-        const storedToken =
-          await AsyncStorage.getItem("token");
-
         const storedDriverId =
           await AsyncStorage.getItem("driverId");
 
+        console.log(
+          "DriverId:",
+          storedDriverId
+        );
 
-        if (!mounted) {
+        if (!storedDriverId) {
+          console.log("❌ DriverId not found");
+
+          Alert.alert(
+            "Error",
+            "Driver ID not found. Please login again."
+          );
+
           return;
         }
 
-
-        if (storedToken) {
-          setToken(storedToken);
-        }
-
-
-        if (storedDriverId) {
+        if (mounted) {
           setDriverId(storedDriverId);
         }
 
+        const connection =
+          await startSignalR(storedDriverId);
 
-        await getCurrentLocation();
+        if (
+          mounted &&
+          connection?.state === "Connected"
+        ) {
+          setSignalRConnected(true);
 
+          console.log(
+            "✅ Driver SignalR connection established"
+          );
+        }
       } catch (error) {
-
         console.error(
-          "Error loading driver data:",
+          "❌ Driver SignalR setup failed:",
           error
         );
 
+        if (mounted) {
+          setSignalRConnected(false);
+        }
       }
-
     };
 
-
-    loadData();
-
+    connectDriver();
 
     return () => {
-
       mounted = false;
 
-      stopLocationUpdates();
+      stopSignalR();
 
+      console.log(
+        "SignalR connection stopped from DriverHome"
+      );
     };
-
   }, []);
 
-
-  /* =========================================
-     PENDING RIDE CHECK
-     ========================================= */
-
-  useEffect(() => {
-
-    if (!isOnline || !driverId) {
-      return;
-    }
-
-
-    const interval =
-      setInterval(async () => {
-
-        const ride =
-          await getPendingRide(driverId);
-
-
-        if (ride) {
-          setPendingRide(ride);
-        }
-
-      }, 5000);
-
-
-    return () => {
-      clearInterval(interval);
-    };
-
-  }, [isOnline, driverId]);
-
-
-  /* =========================================
-     UPDATE DRIVER LOCATION
-     ========================================= */
-
-  const updateDriverLocation = async () => {
-
-    try {
-
-      const coords =
-        await getCurrentLocation();
-
-
-      if (!coords) {
-        return;
-      }
-
-
-      if (!driverId) {
-
-        console.log(
-          "Driver ID is missing"
-        );
-
-        return;
-      }
-
-
-      if (!token) {
-
-        console.log(
-          "Authentication token is missing"
-        );
-
-        return;
-      }
-
-
-      await axios.put(
-
-        `${API_URL}/driver/${driverId}/location`,
-
-        {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-        },
-
-        {
-          headers: {
-            Authorization:
-              `Bearer ${token}`,
-          },
-        }
-
-      );
-
-
-      console.log(
-        "Driver location updated"
-      );
-
-    } catch (error) {
-
-      console.error(
-        "Location update error:",
-        error
-      );
-
-    }
-
-  };
-
-
-  /* =========================================
-     STOP LOCATION UPDATES
-     ========================================= */
-
-  const stopLocationUpdates = () => {
-
-    if (intervalRef.current) {
-
-      clearInterval(
-        intervalRef.current
-      );
-
-      intervalRef.current = null;
-
-    }
-
-  };
-
-
-  /* =========================================
-     START LOCATION UPDATES
-     ========================================= */
-
-  const startLocationUpdates = () => {
-
-    if (intervalRef.current) {
-      return;
-    }
-
-
-    updateDriverLocation();
-
-
-    intervalRef.current =
-      setInterval(() => {
-
-        updateDriverLocation();
-
-      }, 10000);
-
-  };
-
-
-  /* =========================================
-     GET CURRENT LOCATION
-     ========================================= */
-
-  const getCurrentLocation = async () => {
-
-    try {
-
-      const { status } =
-        await Location.requestForegroundPermissionsAsync();
-
-
-      if (status !== "granted") {
-
-        Alert.alert(
-          "Location Permission",
-          "Please allow location access for the Driver App."
-        );
-
-        return null;
-      }
-
-
-      const location =
-        await Location.getCurrentPositionAsync({
-
-          accuracy:
-            Location.Accuracy.High,
-
-        });
-
-
-      const coords = {
-
-        latitude:
-          location.coords.latitude,
-
-        longitude:
-          location.coords.longitude,
-
-      };
-
-
-      console.log(
-        "Latitude:",
-        coords.latitude
-      );
-
-      console.log(
-        "Longitude:",
-        coords.longitude
-      );
-
-
-      setCurrentLocation(coords);
-
-
-      return coords;
-
-    } catch (error) {
-
-      console.error(
-        "Location error:",
-        error
-      );
-
-
-      Alert.alert(
-        "Location Error",
-        "Unable to get your current location."
-      );
-
-
-      return null;
-
-    }
-
-  };
-
-
-  /* =========================================
-     GET PENDING RIDE
-     ========================================= */
-
-  const getPendingRide =
-    async (driverId: string) => {
-
-      try {
-
-        const response =
-          await fetch(
-            `${API_URL}/Ride/driver/${driverId}/pending`
-          );
-
-
-        if (response.status === 204) {
-          return null;
-        }
-
-
-        if (!response.ok) {
-
-          throw new Error(
-            "Failed to fetch pending ride"
-          );
-
-        }
-
-
-        const ride =
-          await response.json();
-
-
-        return ride;
-
-      } catch (error) {
-
-        console.error(
-          "Pending ride error:",
-          error
-        );
-
-
-        return null;
-
-      }
-
-    };
-
-
-  /* =========================================
-     ACCEPT RIDE
-     ========================================= */
-
-  const acceptRide =
-    async (rideId: string) => {
-
-      try {
-
-        await axios.post(
-
-          `${API_URL}/Ride/${rideId}/accept`,
-
-          null,
-
-          {
-
-            params: {
-              driverId: driverId,
-            },
-
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-
-          }
-
-        );
-
-
-        Alert.alert(
-          "Success",
-          "Ride accepted successfully"
-        );
-
-
-        router.push({
-
-          pathname:
-            "../../ride-progress",
-
-          params: {
-
-            rideId:
-              rideId,
-
-            pickupLocation:
-              pendingRide.pickupLocation,
-
-            destination:
-              pendingRide.dropoffLocation,
-
-          },
-
-        });
-
-
-        setPendingRide(null);
-
-
-      } catch (error) {
-
-        console.log(error);
-
-
-        Alert.alert(
-          "Error",
-          "Unable to accept ride"
-        );
-
-      }
-
-    };
-
-
-  /* =========================================
-     REJECT RIDE
-     ========================================= */
-
-  const rejectRide =
-    async (rideId: string) => {
-
-      try {
-
-        const response =
-          await axios.post(
-
-            `${API_URL}/Ride/${rideId}/reject`,
-
-            null,
-
-            {
-
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-
-            }
-
-          );
-
-
-        if (response.status === 200) {
-
-          Alert.alert(
-            "Success",
-            "Ride rejected successfully"
-          );
-
-
-          setPendingRide(null);
-
-        }
-
-      } catch (error) {
-
-        console.log(error);
-
-
-        Alert.alert(
-          "Error",
-          "Unable to reject ride"
-        );
-
-      }
-
-    };
-
-
-  /* =========================================
-     ONLINE / OFFLINE STATUS
-     ========================================= */
-
-  const toggleStatus =
-    async (value: boolean) => {
-
-      try {
-
-        console.log(
-          "driverId:",
-          driverId
-        );
-
-        console.log(
-          "token:",
-          token
-        );
-
-        console.log(
-          "Setting online status:",
-          value
-        );
-
-
-        await axios.put(
-
-          `${API_URL}/driver/${driverId}/status`,
-
-          {
-            isOnline: value,
-          },
-
-          {
-
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-
-          }
-
-        );
-
-
-        setIsOnline(value);
-
-
-        if (value) {
-
-          startLocationUpdates();
-
-        } else {
-
-          stopLocationUpdates();
-
-          setPendingRide(null);
-
-        }
-
-      } catch (error) {
-
-        console.log(
-          "Status update error:",
-          error
-        );
-
-
-        Alert.alert(
-          "Error",
-          "Unable to update driver status"
-        );
-
-      }
-
-    };
-
-
-  /* =========================================
-     SCREEN
-     ========================================= */
-
   return (
+    <View style={styles.container}>
 
-    <SafeAreaView
-      style={styles.container}
-    >
+      <Text style={styles.title}>
+        Driver Home
+      </Text>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <Text style={styles.driverText}>
+        Driver ID:
+      </Text>
+
+      <Text style={styles.driverId}>
+        {driverId ?? "Loading..."}
+      </Text>
+
+      <Text
+        style={[
+          styles.status,
+          {
+            color: signalRConnected
+              ? "green"
+              : "red",
+          },
+        ]}
       >
-
-        {/* HEADER */}
-
-        <View
-          style={styles.header}
-        >
-
-          <Text style={styles.icon}>
-            ☰
-          </Text>
-
-
-          <Text style={styles.headerTitle}>
-            Ride Driver
-          </Text>
-
-
-          <Text style={styles.icon}>
-            🔔
-          </Text>
-
-        </View>
-
-
-        {/* ONLINE STATUS */}
-
-        <View
-          style={styles.statusCard}
-        >
-
-          <Text
-            style={styles.onlineText}
-          >
-
-            {isOnline
-              ? "🟢 Online"
-              : "🔴 Offline"}
-
-          </Text>
-
-
-          <Switch
-            value={isOnline}
-            onValueChange={toggleStatus}
-          />
-
-        </View>
-
-
-        {/* PENDING RIDE */}
-
-        {pendingRide ? (
-
-          <View
-            style={styles.rideCard}
-          >
-
-            <Text
-              style={styles.rideTitle}
-            >
-              🚖 New Ride Request
-            </Text>
-
-
-            <Text
-              style={styles.rideLabel}
-            >
-              Passenger
-            </Text>
-
-
-            <Text
-              style={styles.rideValue}
-            >
-              {pendingRide.passengerName}
-            </Text>
-
-
-            <Text
-              style={styles.rideLabel}
-            >
-              Pickup
-            </Text>
-
-
-            <Text
-              style={styles.rideValue}
-            >
-              {pendingRide.pickupLocation}
-            </Text>
-
-
-            <Text
-              style={styles.rideLabel}
-            >
-              Destination
-            </Text>
-
-
-            <Text
-              style={styles.rideValue}
-            >
-              {pendingRide.dropoffLocation}
-            </Text>
-
-
-            <View
-              style={styles.buttonContainer}
-            >
-
-              <Pressable
-                style={styles.rejectButton}
-                onPress={() =>
-                  rejectRide(
-                    pendingRide.rideId ||
-                    pendingRide.id
-                  )
-                }
-              >
-
-                <Text
-                  style={styles.buttonText}
-                >
-                  Reject
-                </Text>
-
-              </Pressable>
-
-
-              <Pressable
-                style={styles.acceptButton}
-                onPress={() =>
-                  acceptRide(
-                    pendingRide.rideId ||
-                    pendingRide.id
-                  )
-                }
-              >
-
-                <Text
-                  style={styles.buttonText}
-                >
-                  Accept
-                </Text>
-
-              </Pressable>
-
-            </View>
-
-          </View>
-
-        ) : (
-
-          <Text
-            style={styles.waitingText}
-          >
-            Waiting for ride requests...
-          </Text>
-
-        )}
-
-
-        {/* DRIVER MAP */}
-
-        <View
-          style={styles.mapCard}
-        >
-
-          <Text
-            style={styles.cardTitle}
-          >
-            📍 Your Current Location
-          </Text>
-
-
-          {currentLocation ? (
-
-            <DriverMap
-              latitude={
-                currentLocation.latitude
-              }
-              longitude={
-                currentLocation.longitude
-              }
-            />
-
-          ) : (
-
-            <View
-              style={styles.mapLoading}
-            >
-
-              <Text
-                style={styles.mapLoadingText}
-              >
-                Getting your current location...
-              </Text>
-
-            </View>
-
-          )}
-
-
-          <Text
-            style={styles.subtitle}
-          >
-
-            {isOnline
-              ? "Ready to receive ride requests"
-              : "You are currently offline"}
-
-          </Text>
-
-        </View>
-
-
-        {/* LOCATION INFORMATION */}
-
-        <View
-          style={styles.card}
-        >
-
-          <Text
-            style={styles.cardTitle}
-          >
-            📍 Location Status
-          </Text>
-
-
-          {currentLocation ? (
-
-            <>
-
-              <Text
-                style={styles.location}
-              >
-                GPS location available
-              </Text>
-
-
-              <Text
-                style={styles.coordinateText}
-              >
-                Latitude:{" "}
-                {currentLocation.latitude.toFixed(6)}
-              </Text>
-
-
-              <Text
-                style={styles.coordinateText}
-              >
-                Longitude:{" "}
-                {currentLocation.longitude.toFixed(6)}
-              </Text>
-
-            </>
-
-          ) : (
-
-            <Text
-              style={styles.location}
-            >
-              Waiting for GPS location...
-            </Text>
-
-          )}
-
-        </View>
-
-
-        {/* EARNINGS */}
-
-        <View
-          style={styles.card}
-        >
-
-          <Text
-            style={styles.cardTitle}
-          >
-            Today's Earnings
-          </Text>
-
-
-          <Text
-            style={styles.bigValue}
-          >
-            ₹0.00
-          </Text>
-
-        </View>
-
-
-        {/* TRIPS */}
-
-        <View
-          style={styles.card}
-        >
-
-          <Text
-            style={styles.cardTitle}
-          >
-            Today's Trips
-          </Text>
-
-
-          <Text
-            style={styles.bigValue}
-          >
-            0
-          </Text>
-
-        </View>
-
-
-        {/* RIDE REQUEST */}
-
-        <View
-          style={styles.card}
-        >
-
-          <Text
-            style={styles.cardTitle}
-          >
-            🚖 No Ride Requests
-          </Text>
-
-
-          <Text
-            style={styles.subtitle}
-          >
-            Waiting for nearby passengers...
-          </Text>
-
-        </View>
-
-      </ScrollView>
-
-
-      {/* BOTTOM NAVIGATION */}
-
-      <View
-        style={styles.bottomNav}
-      >
-
-        <Pressable
-          style={styles.navButton}
-          onPress={() =>
-            router.push("/")
-          }
-        >
-
-          <Text
-            style={styles.navIcon}
-          >
-            🏠
-          </Text>
-
-
-          <Text
-            style={styles.navText}
-          >
-            Home
-          </Text>
-
-        </Pressable>
-
-
-        <Pressable
-          style={styles.navButton}
-          onPress={() =>
-            router.push("/profile")
-          }
-        >
-
-          <Text
-            style={styles.navIcon}
-          >
-            👤
-          </Text>
-
-
-          <Text
-            style={styles.navText}
-          >
-            Profile
-          </Text>
-
-        </Pressable>
-
-      </View>
-
-    </SafeAreaView>
-
+        {signalRConnected
+          ? "🟢 SignalR Connected"
+          : "🔴 SignalR Not Connected"}
+      </Text>
+
+    </View>
   );
-
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
-/* =========================================
-   STYLES
-   ========================================= */
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    marginBottom: 30,
+  },
 
-const styles =
-  StyleSheet.create({
+  driverText: {
+    fontSize: 16,
+    marginBottom: 5,
+  },
 
-    container: {
-      flex: 1,
-      backgroundColor: "#F4F6F8",
-    },
+  driverId: {
+    fontSize: 14,
+    marginBottom: 20,
+  },
 
-
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      backgroundColor: "#0A84FF",
-      paddingHorizontal: 20,
-      paddingVertical: 18,
-    },
-
-
-    icon: {
-      fontSize: 24,
-      color: "#fff",
-    },
-
-
-    headerTitle: {
-      fontSize: 22,
-      fontWeight: "bold",
-      color: "#fff",
-    },
-
-
-    statusCard: {
-      margin: 15,
-      backgroundColor: "#fff",
-      borderRadius: 15,
-      padding: 18,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      elevation: 4,
-    },
-
-
-    onlineText: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: "#34C759",
-    },
-
-
-    rideCard: {
-      backgroundColor: "#FFFFFF",
-      marginHorizontal: 15,
-      marginBottom: 15,
-      padding: 16,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: "#E0E0E0",
-      elevation: 3,
-    },
-
-
-    rideTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: "#222",
-      marginBottom: 12,
-    },
-
-
-    rideLabel: {
-      fontSize: 14,
-      color: "#666",
-      marginTop: 8,
-    },
-
-
-    rideValue: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: "#000",
-      marginBottom: 4,
-    },
-
-
-    buttonContainer: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: 20,
-    },
-
-
-    acceptButton: {
-      flex: 1,
-      backgroundColor: "#34C759",
-      padding: 12,
-      borderRadius: 8,
-      alignItems: "center",
-      marginLeft: 8,
-    },
-
-
-    rejectButton: {
-      flex: 1,
-      backgroundColor: "#FF3B30",
-      padding: 12,
-      borderRadius: 8,
-      alignItems: "center",
-      marginRight: 8,
-    },
-
-
-    buttonText: {
-      color: "#FFFFFF",
-      fontWeight: "bold",
-      fontSize: 16,
-    },
-
-
-    waitingText: {
-      textAlign: "center",
-      fontSize: 16,
-      color: "#666",
-      marginBottom: 10,
-    },
-
-
-    /* MAP */
-
-    mapCard: {
-      backgroundColor: "#fff",
-      marginHorizontal: 15,
-      marginBottom: 15,
-      borderRadius: 15,
-      padding: 12,
-      elevation: 4,
-    },
-
-
-    mapLoading: {
-      width: "100%",
-      height: 280,
-      borderRadius: 12,
-      justifyContent: "center",
-      alignItems: "center",
-      backgroundColor: "#E9EEF3",
-      marginBottom: 12,
-    },
-
-
-    mapLoadingText: {
-      color: "#666",
-      fontSize: 15,
-    },
-
-
-    /* GENERAL CARD */
-
-    card: {
-      backgroundColor: "#fff",
-      marginHorizontal: 15,
-      marginBottom: 15,
-      borderRadius: 15,
-      padding: 20,
-      elevation: 4,
-    },
-
-
-    cardTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      marginBottom: 12,
-      color: "#222",
-    },
-
-
-    location: {
-      fontSize: 17,
-      fontWeight: "600",
-      marginBottom: 6,
-    },
-
-
-    coordinateText: {
-      fontSize: 14,
-      color: "#555",
-      marginTop: 4,
-    },
-
-
-    subtitle: {
-      color: "gray",
-      fontSize: 15,
-      marginTop: 10,
-    },
-
-
-    bigValue: {
-      fontSize: 34,
-      fontWeight: "bold",
-      textAlign: "center",
-      color: "#0A84FF",
-      marginTop: 10,
-    },
-
-
-    /* BOTTOM NAVIGATION */
-
-    bottomNav: {
-      height: 70,
-      backgroundColor: "#fff",
-      flexDirection: "row",
-      justifyContent: "space-around",
-      alignItems: "center",
-      borderTopWidth: 1,
-      borderColor: "#ddd",
-    },
-
-
-    navButton: {
-      alignItems: "center",
-    },
-
-
-    navIcon: {
-      fontSize: 24,
-    },
-
-
-    navText: {
-      fontSize: 14,
-      marginTop: 5,
-      color: "#444",
-      fontWeight: "600",
-    },
-
-  });
+  status: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+});
