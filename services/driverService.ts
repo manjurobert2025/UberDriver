@@ -1,5 +1,15 @@
-import api from "./api";
+import axios from "axios";
 
-export const registerDriver = (driver: any) => {
-    return api.post("/driver/register", driver);
+const API_BASE_URL = "https://localhost:7197/api";
+
+export const updateDriverStatus = (
+  driverId: string,
+  isOnline: boolean
+) => {
+  return axios.put(
+    `${API_BASE_URL}/Driver/${driverId}/status`,
+    {
+      isOnline: isOnline,
+    }
+  );
 };

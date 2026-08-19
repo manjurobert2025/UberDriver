@@ -10,7 +10,10 @@ const SIGNALR_URL = "http://localhost:5150/rideHub";
 let connection: HubConnection | null = null;
 let currentDriverId: string | null = null;
 
-export const startSignalR = async (driverId: string) => {
+export const startSignalR = async (
+  driverId: string,
+  onNewRide?: (ride: any) => void
+) => {
   currentDriverId = driverId;
 
   // Already connected
@@ -37,6 +40,11 @@ export const startSignalR = async (driverId: string) => {
         "🚕 NEW RIDE REQUEST RECEIVED:",
         ride
       );
+
+      // Send ride to DriverHome
+      if (onNewRide) {
+        onNewRide(ride);
+      }
     });
 
     // -----------------------------------
