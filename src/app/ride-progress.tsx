@@ -1,5 +1,6 @@
 import axios from "axios";
 import { router, useLocalSearchParams } from "expo-router";
+import { doc, onSnapshot } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   Pressable,
@@ -9,6 +10,11 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+
+import { db } from "../../services/firebase";
+
+const API_URL = "https://localhost:7197/api";
+
 const RideProgressScreen = () => {
   const { rideId, pickupLocation, destination } =
     useLocalSearchParams<{
@@ -17,247 +23,434 @@ const RideProgressScreen = () => {
       destination: string;
     }>();
 
-const [rideStatus, setRideStatus] = useState("");
-useEffect(() => {
-  const loadRideStatus = async () => {
+  const [rideStatus, setRideStatus] = useState("");
+
+  // -----------------------------------
+  // FIREBASE RIDE STATUS LISTENER
+  // -----------------------------------
+
+  useEffect(() => {
+    if (!rideId) {
+      return;
+    }
+
+    console.log("🔥 Starting Firestore ride listener");
+    console.log("Ride ID:", rideId);
+
+    const rideRef = doc(db, "rides", rideId);
+
+    const unsubscribe = onSnapshot(
+      rideRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          console.log("Ride document does not exist");
+          return;
+        }
+
+        const rideData = snapshot.data();
+
+        console.log("🔥 Firestore ride update:", rideData);
+        console.log("🔥 Ride status:", rideData.status);
+
+        switch (rideData.status) {
+          case "requested":
+            setRideStatus("Requested");
+            break;
+
+          case "accepted":
+            setRideStatus("Accepted");
+            break;
+
+          case "driverArrived":
+            setRideStatus("DriverArrived");
+            break;
+
+          case "inProgress":
+            setRideStatus("InProgress");
+            break;
+
+          case "completed":
+            setRideStatus("Completed");
+            break;
+
+          case "cancelled":
+            setRideStatus("Cancelled");
+            break;
+
+          case "rejected":
+            setRideStatus("Rejected");
+            break;
+
+          default:
+            setRideStatus("Pending");
+            break;
+        }
+      },
+      (error) => {
+        console.error(
+          "🔥 Firestore ride listener error:",
+          error
+        );
+      }
+    );
+
+    return () => {
+      console.log("🔥 Stopping Firestore ride listener");
+      unsubscribe();
+    };
+  }, [rideId]);
+
+  // -----------------------------------
+  // START RIDE
+  // -----------------------------------
+
+  const handleStartRide = async () => {
     try {
-      const response = await axios.get(
-        `${API_URL}/Ride/${rideId}`
+      console.log("START button clicked");
+      console.log("RideId:", rideId);
+
+      const response = await axios.post(
+        `${API_URL}/Ride/${rideId}/start`
       );
 
-      console.log("Current ride:", response.data);
-      console.log("STATUS VALUE:", response.data.status);
-      console.log("STATUS TYPE:", typeof response.data.status);
+      console.log(
+        "Start Ride API response:",
+        response.data
+      );
 
-      const status = response.data.status;
+      // Update local UI after backend succeeds
+      setRideStatus("InProgress");
 
-switch (status) {
-  case 2:
-    setRideStatus("Accepted");
-    break;
+      alert("Ride started successfully");
+    } catch (error: any) {
+      console.log(
+        "Start Ride API error:",
+        error
+      );
 
-  case 3:
-    setRideStatus("DriverArrived");
-    break;
+      if (error.response) {
+        console.log(
+          "Status:",
+          error.response.status
+        );
 
-  case 4:
-    setRideStatus("InProgress");
-    break;
+        console.log(
+          "Data:",
+          error.response.data
+        );
+      }
 
-  case 5:
-    setRideStatus("Completed");
-    break;
-
-  case 6:
-    setRideStatus("Cancelled");
-    break;
-
-  case 7:
-    setRideStatus("Rejected");
-    break;
-
-  case 8:
-    setRideStatus("Requested");
-    break;
-
-  default:
-    setRideStatus("Pending");
-    break;
-}
-
-    } catch (error) {
-      console.log("Error loading ride status:", error);
+      alert("Unable to start ride");
     }
   };
 
-  if (rideId) {
-    loadRideStatus();
-  }
+  // -----------------------------------
+  // COMPLETE RIDE
+  // -----------------------------------
 
-}, [rideId]);
+  const handleCompleteRide = async () => {
+    try {
+      console.log(
+        "COMPLETE RIDE clicked"
+      );
 
-const API_URL = "https://localhost:7197/api";
+      console.log(
+        "RideId:",
+        rideId
+      );
 
-const handleStartRide = async () => {
-  try {
-    console.log("START button clicked");
-    console.log("RideId:", rideId);
+      const response = await axios.post(
+        `${API_URL}/Ride/${rideId}/complete`
+      );
 
-    const response = await axios.post(
-      `${API_URL}/Ride/${rideId}/start`
-    );
+      console.log(
+        "Complete ride response:",
+        response.data
+      );
 
-    console.log("Start Ride API response:", response.data);
+      // Update local UI after backend succeeds
+      setRideStatus("Completed");
 
-    // Only change UI AFTER backend succeeds
-    setRideStatus("InProgress");
+      alert(
+        "Ride completed successfully"
+      );
+    } catch (error: any) {
+      console.log(
+        "Complete ride error:",
+        error
+      );
 
-    alert("Ride started successfully");
+      if (error.response) {
+        console.log(
+          "Status:",
+          error.response.status
+        );
 
-  } catch (error: any) {
-    console.log("Start Ride API error:", error);
+        console.log(
+          "Data:",
+          error.response.data
+        );
+      }
 
-    if (error.response) {
-      console.log("Status:", error.response.status);
-      console.log("Data:", error.response.data);
+      alert(
+        "Unable to complete ride"
+      );
     }
+  };
 
-    alert("Unable to start ride");
-  }
-};
+  // -----------------------------------
+  // STATUS TEXT
+  // -----------------------------------
 
-const handleCompleteRide = async () => {
-  try {
-    console.log("COMPLETE RIDE clicked");
-    console.log("RideId:", rideId);
+  const getStatusText = () => {
+    switch (rideStatus) {
+      case "Requested":
+        return "RIDE REQUESTED";
 
-    const response = await axios.post(
-      `${API_URL}/Ride/${rideId}/complete`
-    );
+      case "Accepted":
+        return "RIDE ACCEPTED";
 
-    console.log("Complete ride response:", response.data);
+      case "DriverArrived":
+        return "DRIVER ARRIVED";
 
-    // Change UI ONLY after backend succeeds
-    setRideStatus("Completed");
+      case "InProgress":
+        return "RIDE IN PROGRESS";
 
-    alert("Ride completed successfully");
+      case "Completed":
+        return "TRIP COMPLETED";
 
-  } catch (error: any) {
-    console.log("Complete ride error:", error);
+      case "Cancelled":
+        return "RIDE CANCELLED";
 
-    if (error.response) {
-      console.log("Status:", error.response.status);
-      console.log("Data:", error.response.data);
+      case "Rejected":
+        return "RIDE REJECTED";
+
+      default:
+        return "LOADING RIDE STATUS";
     }
+  };
 
-    alert("Unable to complete ride");
-  }
-};
   return (
     <SafeAreaView style={styles.container}>
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Current Ride</Text>
+        <Text style={styles.headerTitle}>
+          Current Ride
+        </Text>
       </View>
-{/* ADD NAVIGATION HERE */}
-    <View style={styles.bottomNav}>
 
-      <Pressable
-        style={styles.navButton}
-        onPress={() => router.push("/")}
-      >
-        <Text style={styles.navIcon}>🏠</Text>
-        <Text style={styles.navText}>Home</Text>
-      </Pressable>    
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
 
-      <Pressable
-        style={styles.navButton}
-        onPress={() => router.push("/profile")}
-      >
-        <Text style={styles.navIcon}>👤</Text>
-        <Text style={styles.navText}>Profile</Text>
-      </Pressable>
+        <Pressable
+          style={styles.navButton}
+          onPress={() => router.push("/")}
+        >
+          <Text style={styles.navIcon}>
+            🏠
+          </Text>
 
-    </View>
+          <Text style={styles.navText}>
+            Home
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.navButton}
+          onPress={() =>
+            router.push("/profile")
+          }
+        >
+          <Text style={styles.navIcon}>
+            👤
+          </Text>
+
+          <Text style={styles.navText}>
+            Profile
+          </Text>
+        </Pressable>
+
+      </View>
 
       {/* Status */}
       <View style={styles.statusContainer}>
         <Text style={styles.statusText}>
-          {rideStatus === "Accepted"
-            ? "RIDE ACCEPTED"
-            : rideStatus === "InProgress"
-            ? "RIDE IN PROGRESS"
-            : "TRIP COMPLETED"}
+          {getStatusText()}
         </Text>
       </View>
 
       {/* Location Card */}
       <View style={styles.card}>
 
-        <Text style={styles.label}>PICKUP</Text>
+        <Text style={styles.label}>
+          PICKUP
+        </Text>
 
         <View style={styles.locationRow}>
+
           <View style={styles.dot} />
 
           <Text style={styles.locationText}>
-            {pickupLocation || "Pickup location"}
+            {pickupLocation ||
+              "Pickup location"}
           </Text>
+
         </View>
 
         <View style={styles.line} />
 
-        <Text style={styles.label}>DESTINATION</Text>
+        <Text style={styles.label}>
+          DESTINATION
+        </Text>
 
         <View style={styles.locationRow}>
-          <View style={styles.destinationDot} />
+
+          <View
+            style={
+              styles.destinationDot
+            }
+          />
 
           <Text style={styles.locationText}>
-            {destination || "Destination"}
+            {destination ||
+              "Destination"}
           </Text>
+
         </View>
 
       </View>
 
-    {/* Progress */}
-<View style={styles.progressCard}>
+      {/* Progress */}
+      <View style={styles.progressCard}>
 
-  <Text style={styles.sectionTitle}>Trip Status</Text>
+        <Text style={styles.sectionTitle}>
+          Trip Status
+        </Text>
 
-  {/* Request received */}
-  <Text style={styles.completedStep}>
-    ✓ Request received
-  </Text>
+        {/* Request received */}
+        <Text style={styles.completedStep}>
+          ✓ Request received
+        </Text>
 
-  {/* Ride accepted */}
-  <Text style={styles.completedStep}>
-    ✓ Ride accepted
-  </Text>
+        {/* Ride accepted */}
+        <Text
+          style={
+            rideStatus === "Accepted" ||
+            rideStatus ===
+              "DriverArrived" ||
+            rideStatus ===
+              "InProgress" ||
+            rideStatus ===
+              "Completed"
+              ? styles.completedStep
+              : styles.pendingStep
+          }
+        >
+          {rideStatus === "Accepted" ||
+          rideStatus ===
+            "DriverArrived" ||
+          rideStatus ===
+            "InProgress" ||
+          rideStatus ===
+            "Completed"
+            ? "✓"
+            : "○"}{" "}
+          Ride accepted
+        </Text>
 
-  {/* Ride started */}
-  <Text
-    style={
-      rideStatus === "InProgress" || rideStatus === "Completed"
-        ? styles.completedStep
-        : styles.pendingStep
-    }
-  >
-    {rideStatus === "InProgress" || rideStatus === "Completed"
-      ? "✓"
-      : "○"}{" "}
-    Ride started
-  </Text>
+        {/* Driver arrived */}
+        <Text
+          style={
+            rideStatus ===
+              "DriverArrived" ||
+            rideStatus ===
+              "InProgress" ||
+            rideStatus ===
+              "Completed"
+              ? styles.completedStep
+              : styles.pendingStep
+          }
+        >
+          {rideStatus ===
+            "DriverArrived" ||
+          rideStatus ===
+            "InProgress" ||
+          rideStatus ===
+            "Completed"
+            ? "✓"
+            : "○"}{" "}
+          Driver arrived
+        </Text>
 
-  {/* Trip completed */}
-  <Text
-    style={
-      rideStatus === "Completed"
-        ? styles.completedStep
-        : styles.pendingStep
-    }
-  >
-    {rideStatus === "Completed" ? "✓" : "○"} Trip completed
-  </Text>
+        {/* Ride started */}
+        <Text
+          style={
+            rideStatus ===
+              "InProgress" ||
+            rideStatus ===
+              "Completed"
+              ? styles.completedStep
+              : styles.pendingStep
+          }
+        >
+          {rideStatus ===
+            "InProgress" ||
+          rideStatus ===
+            "Completed"
+            ? "✓"
+            : "○"}{" "}
+          Ride started
+        </Text>
 
-</View>
-{/* Complete Ride Button */}
-{rideStatus === "InProgress" && (
-  <TouchableOpacity
-    style={styles.primaryButton}
-    onPress={handleCompleteRide}
-  >
-    <Text style={styles.buttonText}>
-      COMPLETE RIDE
-    </Text>
-  </TouchableOpacity>
-)}
+        {/* Trip completed */}
+        <Text
+          style={
+            rideStatus ===
+              "Completed"
+              ? styles.completedStep
+              : styles.pendingStep
+          }
+        >
+          {rideStatus ===
+            "Completed"
+            ? "✓"
+            : "○"}{" "}
+          Trip completed
+        </Text>
+
+      </View>
+
+      {/* Complete Ride Button */}
+      {rideStatus === "InProgress" && (
+        <TouchableOpacity
+          style={
+            styles.primaryButton
+          }
+          onPress={
+            handleCompleteRide
+          }
+        >
+          <Text
+            style={styles.buttonText}
+          >
+            COMPLETE RIDE
+          </Text>
+        </TouchableOpacity>
+      )}
+
     </SafeAreaView>
   );
 };
 
 export default RideProgressScreen;
 
+// -----------------------------------
+// STYLES
+// -----------------------------------
+
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     backgroundColor: "#F5F6F8",
@@ -349,30 +542,32 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     marginVertical: 5,
   },
-bottomNav: {
-  flexDirection: "row",
-  justifyContent: "space-around",
-  alignItems: "center",
-  borderTopWidth: 1,
-  borderTopColor: "#ddd",
-  backgroundColor: "#fff",
-  paddingVertical: 12,
-},
 
-navButton: {
-  flex: 1,
-  alignItems: "center",
-},
+  bottomNav: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+    backgroundColor: "#fff",
+    paddingVertical: 12,
+  },
 
-navIcon: {
-  fontSize: 24,
-  marginBottom: 4,
-},
+  navButton: {
+    flex: 1,
+    alignItems: "center",
+  },
 
-navText: {
-  fontSize: 14,
-  fontWeight: "500",
-},
+  navIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+
+  navText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+
   progressCard: {
     backgroundColor: "#FFF",
     borderRadius: 16,
@@ -399,15 +594,16 @@ navText: {
   },
 
   bottomContainer: {
-  marginTop: 20,
-  paddingBottom: 15,
-},
+    marginTop: 20,
+    paddingBottom: 15,
+  },
 
   primaryButton: {
     backgroundColor: "#111",
     paddingVertical: 17,
     borderRadius: 12,
     alignItems: "center",
+    marginTop: 20,
   },
 
   buttonText: {
@@ -415,4 +611,5 @@ navText: {
     fontSize: 16,
     fontWeight: "700",
   },
+
 });

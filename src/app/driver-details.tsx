@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,11 +9,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { registerDriver } from "../../services/driverService";
 
 export default function DriverDetailsScreen() {
-  // Get userId passed from register.tsx
-  const { userId } = useLocalSearchParams();
+  // Get Firebase user information passed from register.tsx
+  const {
+    firebaseUid,
+    fullName,
+    email,
+    mobile,
+  } = useLocalSearchParams();
 
   const [licenseNumber, setLicenseNumber] = useState("");
   const [make, setMake] = useState("");
@@ -23,91 +30,161 @@ export default function DriverDetailsScreen() {
   const [seatingCapacity, setSeatingCapacity] = useState("");
   const [vehicleType, setVehicleType] = useState("");
 
+  const [loading, setLoading] = useState(false);
+
   const handleFinish = async () => {
-    // Convert userId to a normal string
-    const actualUserId = Array.isArray(userId)
-      ? userId[0]
-      : userId;
+    // Convert Firebase UID to a normal string
+    const actualUserId = Array.isArray(firebaseUid)
+      ? firebaseUid[0]
+      : firebaseUid;
 
-    console.log("USER ID RECEIVED:", actualUserId);
+    console.log("FIREBASE UID RECEIVED:", actualUserId);
 
-    // Check if userId exists
+    // Check if Firebase UID exists
     if (!actualUserId) {
-      alert("User ID is missing.");
-      console.log("ERROR: User ID is missing");
+      Alert.alert(
+        "Error",
+        "Firebase User ID is missing."
+      );
+
+      console.log("ERROR: Firebase UID is missing");
+
       return;
     }
 
     // Basic validation
     if (
-      !licenseNumber ||
-      !make ||
-      !model ||
-      !year ||
-      !color ||
-      !registrationNumber ||
-      !seatingCapacity ||
-      !vehicleType
+      !licenseNumber.trim() ||
+      !make.trim() ||
+      !model.trim() ||
+      !year.trim() ||
+      !color.trim() ||
+      !registrationNumber.trim() ||
+      !seatingCapacity.trim() ||
+      !vehicleType.trim()
     ) {
-      alert("Please fill all fields.");
+      Alert.alert(
+        "Validation",
+        "Please fill all fields."
+      );
+
       return;
     }
 
+    // Validate year
+    const vehicleYear = Number(year);
+
+    if (
+      isNaN(vehicleYear) ||
+      vehicleYear < 1900 ||
+      vehicleYear > new Date().getFullYear() + 1
+    ) {
+      Alert.alert(
+        "Validation",
+        "Please enter a valid vehicle year."
+      );
+
+      return;
+    }
+
+    // Validate seating capacity
+    const capacity = Number(seatingCapacity);
+
+    if (
+      isNaN(capacity) ||
+      capacity <= 0
+    ) {
+      Alert.alert(
+        "Validation",
+        "Please enter a valid seating capacity."
+      );
+
+      return;
+    }
+
+    // Create driver object
     const driver = {
       userId: actualUserId,
-      licenseNumber: licenseNumber,
-      make: make,
-      model: model,
-      year: Number(year),
-      color: color,
-      registrationNumber: registrationNumber,
-      seatingCapacity: Number(seatingCapacity),
-      vehicleType: vehicleType,
+
+      fullName: Array.isArray(fullName)
+        ? fullName[0]
+        : fullName || "",
+
+      email: Array.isArray(email)
+        ? email[0]
+        : email || "",
+
+      mobile: Array.isArray(mobile)
+        ? mobile[0]
+        : mobile || "",
+
+      licenseNumber:
+        licenseNumber.trim(),
+
+      make:
+        make.trim(),
+
+      model:
+        model.trim(),
+
+      year:
+        vehicleYear,
+
+      color:
+        color.trim(),
+
+      registrationNumber:
+        registrationNumber.trim(),
+
+      seatingCapacity:
+        capacity,
+
+      vehicleType:
+        vehicleType.trim(),
     };
 
-    console.log("DRIVER PAYLOAD:", driver);
+    console.log(
+      "DRIVER FIRESTORE DATA:",
+      driver
+    );
 
     try {
-      const response = await registerDriver(driver);
+      setLoading(true);
 
-      console.log("DRIVER RESPONSE:", response.data);
+      // Save driver details to Firestore
+      const response =
+        await registerDriver(driver);
 
-      alert("Driver Registered Successfully!");
+      console.log(
+        "DRIVER REGISTRATION RESPONSE:",
+        response
+      );
 
-      router.replace("/");
+      Alert.alert(
+        "Registration Successful",
+        "Your driver details have been saved successfully.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              router.replace("/");
+            },
+          },
+        ]
+      );
     } catch (error: any) {
-      console.log("DRIVER REGISTRATION FAILED");
-
       console.log(
-        "STATUS:",
-        error.response?.status
+        "DRIVER REGISTRATION FAILED:",
+        error
       );
 
-      console.log(
-        "RESPONSE DATA:",
-        error.response?.data
+      Alert.alert(
+        "Registration Error",
+        error?.message ||
+          "Unable to save driver details."
       );
-
-      console.log(
-        "REQUEST DATA:",
-        error.config?.data
-      );
-
-      console.log(
-        "REQUEST URL:",
-        error.config?.url
-      );
-
-      if (error.response?.data) {
-        alert(
-          JSON.stringify(error.response.data)
-        );
-      } else {
-        alert(
-          error.message ||
-            "Unable to connect to server."
-        );
-      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -118,7 +195,9 @@ export default function DriverDetailsScreen() {
     >
       <View style={styles.card}>
 
-        <Text style={styles.logo}>🚖</Text>
+        <Text style={styles.logo}>
+          🚖
+        </Text>
 
         <Text style={styles.title}>
           Driver Details
@@ -135,6 +214,7 @@ export default function DriverDetailsScreen() {
           value={licenseNumber}
           onChangeText={setLicenseNumber}
           style={styles.input}
+          autoCapitalize="characters"
         />
 
         {/* Vehicle Make */}
@@ -163,6 +243,7 @@ export default function DriverDetailsScreen() {
           value={year}
           onChangeText={setYear}
           style={styles.input}
+          maxLength={4}
         />
 
         {/* Color */}
@@ -181,6 +262,7 @@ export default function DriverDetailsScreen() {
           value={registrationNumber}
           onChangeText={setRegistrationNumber}
           style={styles.input}
+          autoCapitalize="characters"
         />
 
         {/* Seating Capacity */}
@@ -205,11 +287,17 @@ export default function DriverDetailsScreen() {
         {/* Finish Registration Button */}
 
         <TouchableOpacity
-          style={styles.button}
+          style={[
+            styles.button,
+            loading && styles.buttonDisabled,
+          ]}
           onPress={handleFinish}
+          disabled={loading}
         >
           <Text style={styles.buttonText}>
-            Finish Registration
+            {loading
+              ? "Saving..."
+              : "Finish Registration"}
           </Text>
         </TouchableOpacity>
 
@@ -217,6 +305,7 @@ export default function DriverDetailsScreen() {
 
         <TouchableOpacity
           onPress={() => router.back()}
+          disabled={loading}
         >
           <Text style={styles.backText}>
             Back
@@ -280,6 +369,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     marginTop: 10,
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   buttonText: {

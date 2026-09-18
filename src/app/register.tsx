@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { registerUser } from "../../services/authService";
 
 export default function RegisterScreen() {
@@ -15,47 +17,87 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
-  const [vehicleNumber, setVehicleNumber] = useState("");
-  const [vehicleType, setVehicleType] = useState("");
+
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-  const user = {
-    name: fullName,
-    email,
-    phoneNumber: mobile,
-    password,
-    role: "Driver",
+    // Validation
+    if (!fullName.trim()) {
+      Alert.alert("Validation", "Please enter your full name.");
+      return;
+    }
+
+    if (!email.trim()) {
+      Alert.alert("Validation", "Please enter your email.");
+      return;
+    }
+
+    if (!mobile.trim()) {
+      Alert.alert("Validation", "Please enter your mobile number.");
+      return;
+    }
+
+    if (!password) {
+      Alert.alert("Validation", "Please enter a password.");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert(
+        "Validation",
+        "Password must contain at least 6 characters."
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Firebase registration
+      const user = await registerUser(
+        email.trim(),
+        password
+      );
+
+      console.log("FIREBASE USER:", user);
+      console.log("FIREBASE UID:", user.uid);
+
+      Alert.alert(
+        "Registration Successful",
+        "Your Firebase account has been created."
+      );
+
+      // Go to Driver Details
+      router.push({
+        pathname: "/driver-details",
+        params: {
+          firebaseUid: user.uid,
+          fullName: fullName.trim(),
+          email: email.trim(),
+          mobile: mobile.trim(),
+        },
+      });
+    } catch (error: any) {
+      console.log("FIREBASE REGISTRATION ERROR:", error);
+
+      let message = "Registration failed.";
+
+      if (error?.code === "auth/email-already-in-use") {
+        message = "This email is already registered.";
+      } else if (error?.code === "auth/invalid-email") {
+        message = "Please enter a valid email address.";
+      } else if (error?.code === "auth/weak-password") {
+        message = "The password is too weak.";
+      } else if (error?.message) {
+        message = error.message;
+      }
+
+      Alert.alert("Registration Error", message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  try {
-    const response = await registerUser(user);
-
-    console.log("REGISTRATION RESPONSE:", response.data);
-
-    const userId = response.data.message;
-
-    console.log("NEW USER ID:", userId);
-
-    alert("Registration Successful");
-
-    router.push({
-      pathname: "/driver-details",
-      params: {
-        userId: userId,
-      },
-    });
-
-  } catch (error: any) {
-    console.log("REGISTRATION ERROR:", error);
-
-    if (error.response) {
-      console.log("ERROR RESPONSE:", error.response.data);
-      alert(JSON.stringify(error.response.data));
-    } else {
-      alert(error.message);
-    }
-  }
-};
   return (
     <ScrollView
       contentContainerStyle={styles.container}
@@ -75,12 +117,14 @@ export default function RegisterScreen() {
           style={styles.input}
           value={fullName}
           onChangeText={setFullName}
+          autoCapitalize="words"
         />
 
         <TextInput
           placeholder="Email"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           style={styles.input}
           value={email}
           onChangeText={setEmail}
@@ -97,20 +141,29 @@ export default function RegisterScreen() {
         <TextInput
           placeholder="Password"
           secureTextEntry
+          autoCapitalize="none"
           style={styles.input}
           value={password}
           onChangeText={setPassword}
         />
 
-        
         <TouchableOpacity
-          style={styles.button}
+          style={[
+            styles.button,
+            loading && styles.buttonDisabled,
+          ]}
           onPress={handleRegister}
+          disabled={loading}
         >
-          <Text style={styles.buttonText}>Register</Text>
+          <Text style={styles.buttonText}>
+            {loading ? "Registering..." : "Register"}
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          disabled={loading}
+        >
           <Text style={styles.loginText}>
             Already have an account? Login
           </Text>
@@ -172,6 +225,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     marginTop: 10,
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   buttonText: {

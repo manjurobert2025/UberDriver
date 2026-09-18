@@ -1,31 +1,42 @@
-import api from "./api";
+import {
+    createUserWithEmailAndPassword,
+    sendPasswordResetEmail,
+    signInWithEmailAndPassword,
+    signOut,
+} from "firebase/auth";
 
-export const registerUser = (user: any) => {
-    return api.post("/auth/register", user);
-};
+import { auth } from "./firebase";
 
-export const loginUser = (login: any) => {
-    return api.post("/auth/login", login);
-};
+export async function registerUser(
+  email: string,
+  password: string
+) {
+  const userCredential = await createUserWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
 
-export const forgotPassword = async (email: string) => {
-    const response = await api.post("/auth/forgot-password", {
-        email: email
-    });
+  return userCredential.user;
+}
 
-    return response.data;
-};
+export async function loginUser(
+  email: string,
+  password: string
+) {
+  const userCredential = await signInWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
 
-export const resetPassword = async (
-    email: string,
-    token: string,
-    newPassword: string
-) => {
-    const response = await api.post("/auth/reset-password", {
-        email: email,
-        token: token,
-        newPassword: newPassword
-    });
+  return userCredential.user;
+}
 
-    return response.data;
-};
+export async function logoutUser() {
+  await signOut(auth);
+}
+
+export async function resetPassword(email: string) {
+  await sendPasswordResetEmail(auth, email);
+}
