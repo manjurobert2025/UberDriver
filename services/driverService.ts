@@ -1,5 +1,8 @@
 import {
+  addDoc,
+  collection,
   doc,
+  getDocs,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -7,16 +10,14 @@ import {
 
 import { db } from "./firebase";
 
-// -----------------------------------
-// DRIVER TYPE
-// -----------------------------------
-
 export interface Driver {
   userId: string;
   fullName: string;
   email: string;
   mobile: string;
   licenseNumber: string;
+
+  // First vehicle details
   make: string;
   model: string;
   year: number;
@@ -26,82 +27,82 @@ export interface Driver {
   vehicleType: string;
 }
 
-// -----------------------------------
-// REGISTER DRIVER
-// -----------------------------------
+// =====================================================
+// REGISTER DRIVER + FIRST VEHICLE
+// =====================================================
 
-export async function registerDriver(
-  driver: Driver
-) {
+export async function registerDriver(driver: Driver) {
   const driverRef = doc(
     db,
     "drivers",
     driver.userId
   );
 
+  // Create driver document
   await setDoc(driverRef, {
     userId: driver.userId,
-
     fullName: driver.fullName,
     email: driver.email,
     mobile: driver.mobile,
-
-    licenseNumber:
-      driver.licenseNumber,
-
-    make:
-      driver.make,
-
-    model:
-      driver.model,
-
-    year:
-      driver.year,
-
-    color:
-      driver.color,
-
-    registrationNumber:
-      driver.registrationNumber,
-
-    seatingCapacity:
-      driver.seatingCapacity,
-
-    vehicleType:
-      driver.vehicleType,
-
-    // Driver starts offline
+    licenseNumber: driver.licenseNumber,
     isAvailable: false,
-
-    createdAt:
-      serverTimestamp(),
+    createdAt: serverTimestamp(),
   });
 
   console.log(
-    "✅ Driver saved to Firestore:",
+    "DRIVER DOCUMENT CREATED:",
     driver.userId
+  );
+
+  // Create first vehicle
+  const vehiclesRef = collection(
+    db,
+    "drivers",
+    driver.userId,
+    "vehicles"
+  );
+
+  const vehicleRef = doc(vehiclesRef);
+
+  await setDoc(vehicleRef, {
+    vehicleType: driver.vehicleType,
+    make: driver.make,
+    model: driver.model,
+    year: driver.year,
+    color: driver.color,
+    registrationNumber:
+      driver.registrationNumber,
+    seatingCapacity:
+      driver.seatingCapacity,
+
+    tariffId: "default",
+
+    // First vehicle becomes active
+    isActive: true,
+
+    createdAt: serverTimestamp(),
+  });
+
+  console.log(
+    "VEHICLE DOCUMENT CREATED:",
+    vehicleRef.id
   );
 
   return {
     success: true,
     userId: driver.userId,
+    vehicleId: vehicleRef.id,
   };
 }
 
-// -----------------------------------
-// UPDATE DRIVER ONLINE/OFFLINE STATUS
-// -----------------------------------
+// =====================================================
+// UPDATE DRIVER AVAILABILITY
+// =====================================================
 
 export async function updateDriverStatus(
   driverId: string,
-  isOnline: boolean
+  isAvailable: boolean
 ) {
-  if (!driverId) {
-    throw new Error(
-      "Firebase driver UID is missing."
-    );
-  }
-
   const driverRef = doc(
     db,
     "drivers",
@@ -109,40 +110,24 @@ export async function updateDriverStatus(
   );
 
   await updateDoc(driverRef, {
-    isAvailable: isOnline,
-
-    lastStatusUpdate:
-      serverTimestamp(),
+    isAvailable,
   });
 
   console.log(
-    `✅ Driver status updated: ${
-      isOnline ? "ONLINE" : "OFFLINE"
-    }`
+    "DRIVER AVAILABILITY UPDATED:",
+    isAvailable
   );
-
-  return {
-    success: true,
-    driverId: driverId,
-    isAvailable: isOnline,
-  };
 }
 
-// -----------------------------------
+// =====================================================
 // UPDATE DRIVER LOCATION
-// -----------------------------------
+// =====================================================
 
 export async function updateDriverLocation(
   driverId: string,
   latitude: number,
   longitude: number
 ) {
-  if (!driverId) {
-    throw new Error(
-      "Firebase driver UID is missing."
-    );
-  }
-
   const driverRef = doc(
     db,
     "drivers",
@@ -150,23 +135,112 @@ export async function updateDriverLocation(
   );
 
   await updateDoc(driverRef, {
-    latitude: latitude,
-    longitude: longitude,
-
-    locationUpdatedAt:
-      serverTimestamp(),
+    latitude,
+    longitude,
+    updatedAt: serverTimestamp(),
   });
 
   console.log(
-    "📍 Driver location updated:",
+    "DRIVER LOCATION UPDATED:",
     latitude,
     longitude
+  );
+}
+
+// =====================================================
+// ADD ANOTHER VEHICLE
+// =====================================================
+
+export async function addVehicle(
+  driverId: string,
+  vehicle: {
+    vehicleType: string;
+    make: string;
+    model: string;
+    year: number;
+    color: string;
+    registrationNumber: string;
+    seatingCapacity: number;
+    tariffId?: string;
+  }
+) {
+  const vehiclesRef = collection(
+    db,
+    "drivers",
+    driverId,
+    "vehicles"
+  );
+
+  const vehicleRef = await addDoc(
+    vehiclesRef,
+    {
+      vehicleType: vehicle.vehicleType,
+      make: vehicle.make,
+      model: vehicle.model,
+      year: vehicle.year,
+      color: vehicle.color,
+      registrationNumber:
+        vehicle.registrationNumber,
+      seatingCapacity:
+        vehicle.seatingCapacity,
+
+      tariffId:
+        vehicle.tariffId || "default",
+
+      // Newly added vehicle is inactive
+      isActive: false,
+
+      createdAt: serverTimestamp(),
+    }
+  );
+
+  console.log(
+    "VEHICLE ADDED:",
+    vehicleRef.id
   );
 
   return {
     success: true,
-    driverId: driverId,
-    latitude: latitude,
-    longitude: longitude,
+    vehicleId: vehicleRef.id,
+  };
+}
+
+// =====================================================
+// SELECT ACTIVE VEHICLE
+// =====================================================
+
+export async function selectActiveVehicle(
+  driverId: string,
+  vehicleId: string
+) {
+  const vehiclesRef = collection(
+    db,
+    "drivers",
+    driverId,
+    "vehicles"
+  );
+
+  // Get all vehicles belonging to this driver
+  const snapshot = await getDocs(
+    vehiclesRef
+  );
+
+  // Set selected vehicle active
+  // and all other vehicles inactive
+  for (const vehicleDoc of snapshot.docs) {
+    await updateDoc(vehicleDoc.ref, {
+      isActive:
+        vehicleDoc.id === vehicleId,
+    });
+  }
+
+  console.log(
+    "ACTIVE VEHICLE SELECTED:",
+    vehicleId
+  );
+
+  return {
+    success: true,
+    vehicleId,
   };
 }
