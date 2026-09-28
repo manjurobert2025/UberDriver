@@ -1,91 +1,161 @@
-import axios from "axios";
 import { router } from "expo-router";
+import { sendPasswordResetEmail } from "firebase/auth";
 import { useState } from "react";
+
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
+
+import { auth } from "../../services/firebase";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const API_URL = "https://localhost:7197/api";
-
   const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      alert("Please enter your email address");
+    const emailAddress = email.trim();
+
+    console.log("================================");
+    console.log("FORGOT PASSWORD CLICKED");
+    console.log("EMAIL:", emailAddress);
+    console.log("================================");
+
+    if (!emailAddress) {
+      Alert.alert(
+        "Forgot Password",
+        "Please enter your email address first."
+      );
       return;
     }
 
     try {
       setLoading(true);
 
-      console.log("Sending reset email to:", email);
-
-      const response = await axios.post(
-        `${API_URL}/Auth/forgot-password`,
-        {
-          email: email.trim(),
-        }
+      console.log(
+        "Sending Firebase reset email to:",
+        emailAddress
       );
 
-      console.log("Forgot password response:", response.data);
-
-      alert(
-        "Reset email sent. Please check your email for the reset token."
+      await sendPasswordResetEmail(
+        auth,
+        emailAddress
       );
 
-      // Go to Reset Password screen
-      router.push({
-        pathname: "/reset-password",
-        params: {
-          email: email.trim(),
-        },
-      });
+      console.log(
+        "PASSWORD RESET EMAIL SENT SUCCESSFULLY"
+      );
 
+      Alert.alert(
+        "Password Reset",
+        "A password reset link has been sent to your email address. Please check your inbox and spam folder.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              router.replace("../auth/login");
+            },
+          },
+        ]
+      );
     } catch (error: any) {
-      console.log("Forgot password error:", error);
+      console.log(
+        "FIREBASE FORGOT PASSWORD ERROR:",
+        error
+      );
 
-      if (error.response) {
-        console.log("Status:", error.response.status);
-        console.log("Data:", error.response.data);
+      console.log(
+        "ERROR CODE:",
+        error?.code
+      );
+
+      console.log(
+        "ERROR MESSAGE:",
+        error?.message
+      );
+
+      let message =
+        "Unable to send password reset email.";
+
+      switch (error?.code) {
+        case "auth/invalid-email":
+          message =
+            "Please enter a valid email address.";
+          break;
+
+        case "auth/user-disabled":
+          message =
+            "This account has been disabled.";
+          break;
+
+        case "auth/too-many-requests":
+          message =
+            "Too many requests. Please wait and try again later.";
+          break;
+
+        case "auth/network-request-failed":
+          message =
+            "Network error. Please check your internet connection.";
+          break;
+
+        case "auth/operation-not-allowed":
+          message =
+            "Email/password authentication is not enabled in Firebase.";
+          break;
+
+        default:
+          if (error?.message) {
+            message = error.message;
+          }
+          break;
       }
 
-      alert("Unable to send reset email. Please try again.");
-
+      Alert.alert(
+        "Forgot Password",
+        message
+      );
     } finally {
       setLoading(false);
+
+      console.log(
+        "FORGOT PASSWORD PROCESS FINISHED"
+      );
     }
   };
 
   return (
     <View style={styles.container}>
-
       <View style={styles.card}>
 
-        <Text style={styles.icon}>🔐</Text>
+        <Text style={styles.icon}>
+          🔐
+        </Text>
 
         <Text style={styles.title}>
           Forgot Password?
         </Text>
 
         <Text style={styles.subtitle}>
-          Enter your registered email address and we'll send you a password
-          reset token.
+          Enter your registered email address
+          and we'll send you a password reset
+          link.
         </Text>
 
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor="#9CA3AF"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          editable={!loading}
         />
 
         <Pressable
@@ -96,13 +166,22 @@ export default function ForgotPasswordScreen() {
           onPress={handleForgotPassword}
           disabled={loading}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "Sending..." : "SEND RESET EMAIL"}
-          </Text>
+          {loading ? (
+            <ActivityIndicator
+              color="#FFFFFF"
+            />
+          ) : (
+            <Text style={styles.buttonText}>
+              SEND RESET EMAIL
+            </Text>
+          )}
         </Pressable>
 
         <Pressable
-          onPress={() => router.back()}
+          onPress={() =>
+            router.replace("../auth/login")
+          }
+          disabled={loading}
         >
           <Text style={styles.backText}>
             Back to Login
@@ -110,7 +189,6 @@ export default function ForgotPasswordScreen() {
         </Pressable>
 
       </View>
-
     </View>
   );
 }

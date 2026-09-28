@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 
 import {
@@ -21,6 +20,7 @@ import {
 
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -37,7 +37,10 @@ import {
   updateDriverStatus,
 } from "../../services/driverService";
 
-import { db } from "../../services/firebase";
+import {
+  auth,
+  db,
+} from "../../services/firebase";
 
 // ============================================================
 // VEHICLE INTERFACE
@@ -67,6 +70,16 @@ export default function DriverHome() {
   // ==========================================================
 
   const [driverId, setDriverId] =
+    useState<string | null>(null);
+
+  // ==========================================================
+  // DRIVER PROFILE
+  // ==========================================================
+
+  const [driverName, setDriverName] =
+    useState("Driver");
+
+  const [driverPhotoUrl, setDriverPhotoUrl] =
     useState<string | null>(null);
 
   // ==========================================================
@@ -140,28 +153,34 @@ export default function DriverHome() {
 
       try {
 
-        const storedFirebaseUid =
-          await AsyncStorage.getItem(
-            "firebaseUid"
-          );
+        const currentUser =
+          auth.currentUser;
 
-        console.log(
-          "Firebase UID from storage:",
-          storedFirebaseUid
-        );
-
-        if (!storedFirebaseUid) {
+        if (!currentUser) {
 
           Alert.alert(
             "Error",
-            "Driver information not found. Please login again."
+            "Driver is not logged in. Please login again."
           );
 
           return;
         }
 
+        const firebaseUid =
+          currentUser.uid;
+
+        console.log(
+          "AUTHENTICATED DRIVER UID:",
+          firebaseUid
+        );
+
+        console.log(
+          "AUTHENTICATED DRIVER EMAIL:",
+          currentUser.email
+        );
+
         setDriverId(
-          storedFirebaseUid
+          firebaseUid
         );
 
       } catch (error) {
@@ -178,6 +197,67 @@ export default function DriverHome() {
     loadDriver();
 
   }, []);
+
+  // ==========================================================
+  // LOAD DRIVER PROFILE / PHOTO
+  // ==========================================================
+
+  useEffect(() => {
+    if (!driverId) {
+      return;
+    }
+
+    console.log(
+      "👤 Listening for driver profile:",
+      driverId
+    );
+
+    const driverRef = doc(
+      db,
+      "drivers",
+      driverId
+    );
+
+    const unsubscribe = onSnapshot(
+      driverRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          console.log(
+            "Driver profile not found:",
+            driverId
+          );
+          return;
+        }
+
+        const driverData = snapshot.data();
+
+        console.log(
+          "👤 Driver profile loaded:",
+          driverData
+        );
+
+        setDriverName(
+          driverData.fullName ||
+            "Driver"
+        );
+
+        setDriverPhotoUrl(
+          driverData.photoUrl ||
+            null
+        );
+      },
+      (error) => {
+        console.error(
+          "Driver profile listener error:",
+          error
+        );
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [driverId]);
 
   // ==========================================================
   // LOAD DRIVER VEHICLES
@@ -1318,6 +1398,71 @@ export default function DriverHome() {
       showsVerticalScrollIndicator={true}
     >
 
+      {/* DRIVER PROFILE */}
+
+      <View
+        style={
+          styles.profileCard
+        }
+      >
+        {driverPhotoUrl ? (
+          <Image
+            source={{
+              uri: driverPhotoUrl,
+            }}
+            style={
+              styles.profilePhoto
+            }
+          />
+        ) : (
+          <View
+            style={
+              styles.profilePhotoPlaceholder
+            }
+          >
+            <Text
+              style={
+                styles.profilePhotoPlaceholderText
+              }
+            >
+              👤
+            </Text>
+          </View>
+        )}
+
+        <View
+          style={
+            styles.profileInfo
+          }
+        >
+          <Text
+            style={
+              styles.profileName
+            }
+          >
+            {driverName}
+          </Text>
+
+          <Text
+            style={
+              styles.profileRole
+            }
+          >
+            Driver
+          </Text>
+
+          {driverPhotoUrl && (
+            <Text
+              style={
+                styles.photoStatus
+              }
+            >
+              ✓ Profile photo
+            </Text>
+          )}
+        </View>
+      </View>
+
       {/* TITLE */}
 
       <Text
@@ -1967,6 +2112,69 @@ const styles =
       alignItems: "center",
       backgroundColor: "#FFFFFF",
       paddingBottom: 40,
+    },
+
+    // ========================================================
+    // DRIVER PROFILE
+    // ========================================================
+
+    profileCard: {
+      width: "100%",
+      maxWidth: 500,
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 18,
+      borderRadius: 18,
+      backgroundColor: "#F5F7FA",
+      borderWidth: 1,
+      borderColor: "#D9E1E8",
+      marginBottom: 15,
+    },
+
+    profilePhoto: {
+      width: 90,
+      height: 90,
+      borderRadius: 45,
+      borderWidth: 3,
+      borderColor: "#0A84FF",
+    },
+
+    profilePhotoPlaceholder: {
+      width: 90,
+      height: 90,
+      borderRadius: 45,
+      backgroundColor: "#E5E7EB",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: "#D1D5DB",
+    },
+
+    profilePhotoPlaceholderText: {
+      fontSize: 38,
+    },
+
+    profileInfo: {
+      flex: 1,
+      marginLeft: 16,
+    },
+
+    profileName: {
+      fontSize: 22,
+      fontWeight: "bold",
+      marginBottom: 4,
+    },
+
+    profileRole: {
+      fontSize: 15,
+      color: "#666666",
+      marginBottom: 5,
+    },
+
+    photoStatus: {
+      fontSize: 13,
+      color: "green",
+      fontWeight: "600",
     },
 
     title: {
