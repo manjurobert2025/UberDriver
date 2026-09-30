@@ -1,112 +1,288 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  serverTimestamp,
+  where
+} from "firebase/firestore";
+
 import { useState } from "react";
 
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-import { addVehicle } from "../../services/driverService";
+import { auth, db } from "../../services/firebase";
 
 export default function AddVehicleScreen() {
+  const [vehicleType, setVehicleType] = useState("");
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
   const [color, setColor] = useState("");
   const [registrationNumber, setRegistrationNumber] = useState("");
   const [seatingCapacity, setSeatingCapacity] = useState("");
-  const [vehicleType, setVehicleType] = useState("");
+  const [category, setCategory] = useState("Car");
 
   const [loading, setLoading] = useState(false);
 
   const handleAddVehicle = async () => {
-    const driverId = await AsyncStorage.getItem("firebaseUid");
-
-    if (!driverId) {
-      Alert.alert(
-        "Error",
-        "Driver information not found. Please login again."
-      );
-      return;
-    }
-
-    if (
-      !make.trim() ||
-      !model.trim() ||
-      !year.trim() ||
-      !color.trim() ||
-      !registrationNumber.trim() ||
-      !seatingCapacity.trim() ||
-      !vehicleType.trim()
-    ) {
-      Alert.alert("Validation", "Please fill all fields.");
-      return;
-    }
-
-    const vehicleYear = Number(year);
-
-    if (
-      isNaN(vehicleYear) ||
-      vehicleYear < 1900 ||
-      vehicleYear > new Date().getFullYear() + 1
-    ) {
-      Alert.alert("Validation", "Please enter a valid vehicle year.");
-      return;
-    }
-
-    const capacity = Number(seatingCapacity);
-
-    if (isNaN(capacity) || capacity <= 0) {
-      Alert.alert(
-        "Validation",
-        "Please enter a valid seating capacity."
-      );
-      return;
-    }
+    console.log("========== ADD VEHICLE ==========");
 
     try {
-      setLoading(true);
+      // --------------------------------------------------
+      // Check Firebase login
+      // --------------------------------------------------
 
-      const response = await addVehicle(driverId, {
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        Alert.alert(
+          "Login Required",
+          "Driver is not logged in. Please login again."
+        );
+        return;
+      }
+
+      console.log("Firebase UID:", currentUser.uid);
+
+      // --------------------------------------------------
+      // Validate fields
+      // --------------------------------------------------
+
+      if (
+        !vehicleType.trim() ||
+        !make.trim() ||
+        !model.trim() ||
+        !year.trim() ||
+        !color.trim() ||
+        !registrationNumber.trim() ||
+        !seatingCapacity.trim()
+      ) {
+        Alert.alert(
+          "Validation",
+          "Please fill all vehicle details."
+        );
+        return;
+      }
+
+      // --------------------------------------------------
+      // Validate year
+      // --------------------------------------------------
+
+      const vehicleYear = Number(year);
+
+      if (
+        !Number.isInteger(vehicleYear) ||
+        vehicleYear < 1900 ||
+        vehicleYear > new Date().getFullYear() + 1
+      ) {
+        Alert.alert(
+          "Validation",
+          "Please enter a valid vehicle year."
+        );
+        return;
+      }
+
+      // --------------------------------------------------
+      // Validate seating capacity
+      // --------------------------------------------------
+
+      const capacity = Number(seatingCapacity);
+
+      if (
+        !Number.isInteger(capacity) ||
+        capacity <= 0 ||
+        capacity > 20
+      ) {
+        Alert.alert(
+          "Validation",
+          "Please enter a valid seating capacity."
+        );
+        return;
+      }
+
+      // --------------------------------------------------
+      // Clean registration number
+      // --------------------------------------------------
+
+      // Removes accidental quotes and normalizes spaces.
+      const cleanRegistrationNumber =
+        registrationNumber
+          .replace(/["']/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toUpperCase();
+
+      // --------------------------------------------------
+      // Find driver's Firestore document
+      // --------------------------------------------------
+
+      console.log(
+        "Finding driver document using Firebase UID..."
+      );
+
+      const driversQuery = query(
+        collection(db, "drivers"),
+        where("userId", "==", currentUser.uid)
+      );
+
+      const driverSnapshot =
+        await getDocs(driversQuery);
+
+      if (driverSnapshot.empty) {
+        Alert.alert(
+          "Driver Profile Error",
+          "Driver profile was not found. Please login again or check the drivers collection."
+        );
+        return;
+      }
+
+      const driverDoc =
+        driverSnapshot.docs[0];
+
+      const driverId = driverDoc.id;
+
+      console.log(
+        "Firestore Driver ID:",
+        driverId
+      );
+
+      // --------------------------------------------------
+      // Add vehicle under:
+      //
+      // drivers/{driverId}/vehicles
+      // --------------------------------------------------
+
+      const vehiclesRef = collection(
+        db,
+        "drivers",
+        driverId,
+        "vehicles"
+      );
+
+      // --------------------------------------------------
+      // Check duplicate registration number
+      // --------------------------------------------------
+
+      const existingVehicleQuery = query(
+        vehiclesRef,
+        where(
+          "registrationNumber",
+          "==",
+          cleanRegistrationNumber
+        )
+      );
+
+      const existingSnapshot =
+        await getDocs(existingVehicleQuery);
+
+      if (!existingSnapshot.empty) {
+        Alert.alert(
+          "Vehicle Already Exists",
+          "A vehicle with this registration number is already registered."
+        );
+        return;
+      }
+
+      // --------------------------------------------------
+      // Check whether driver already has an active vehicle
+      // --------------------------------------------------
+
+      const activeVehicleQuery = query(
+        vehiclesRef,
+        where("isActive", "==", true)
+      );
+
+      const activeVehicleSnapshot =
+        await getDocs(activeVehicleQuery);
+
+      // New vehicle becomes active only when there is
+      // currently no active vehicle.
+      const makeActive =
+        activeVehicleSnapshot.empty;
+
+      console.log(
+        "Existing active vehicles:",
+        activeVehicleSnapshot.size
+      );
+
+      console.log(
+        "New vehicle active:",
+        makeActive
+      );
+
+      // --------------------------------------------------
+      // Create vehicle
+      // --------------------------------------------------
+
+      const vehicleData = {
+        driverId,
+        vehicleType:
+          vehicleType.trim(),
         make: make.trim(),
         model: model.trim(),
         year: vehicleYear,
         color: color.trim(),
-        registrationNumber: registrationNumber.trim(),
+        registrationNumber:
+          cleanRegistrationNumber,
         seatingCapacity: capacity,
-        vehicleType: vehicleType.trim(),
-        tariffId: "default",
-      });
+        category:
+          category.trim() || "Car",
+        isActive: makeActive,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
 
-      console.log("ADD VEHICLE RESPONSE:", response);
+      console.log(
+        "VEHICLE DATA:",
+        vehicleData
+      );
+
+      setLoading(true);
+
+      const vehicleDoc =
+        await addDoc(
+          vehiclesRef,
+          vehicleData
+        );
+
+      console.log(
+        "VEHICLE CREATED:",
+        vehicleDoc.id
+      );
+
+      setLoading(false);
 
       Alert.alert(
         "Vehicle Added",
-        "Your vehicle has been added successfully.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              router.back();
-            },
-          },
-        ]
+        `${make.trim()} ${model.trim()} has been added successfully.`
       );
+
+      router.replace("/driver-home");
     } catch (error: any) {
-      console.error("ADD VEHICLE FAILED:", error);
+      console.error(
+        "ADD VEHICLE ERROR:",
+        error
+      );
+
+      setLoading(false);
 
       Alert.alert(
-        "Error",
-        error?.message || "Unable to add vehicle."
+        "Add Vehicle Error",
+        error?.message ||
+          "Unable to add vehicle. Please try again."
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -116,19 +292,30 @@ export default function AddVehicleScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.card}>
-        <Text style={styles.logo}>🚗</Text>
-
-        <Text style={styles.title}>Add Vehicle</Text>
+        <Text style={styles.title}>
+          Add Vehicle
+        </Text>
 
         <Text style={styles.subtitle}>
-          Add another vehicle to your account
+          Enter your vehicle details
         </Text>
+
+        <TextInput
+          placeholder="Vehicle Type"
+          value={vehicleType}
+          onChangeText={setVehicleType}
+          style={styles.input}
+          autoCapitalize="words"
+          editable={!loading}
+        />
 
         <TextInput
           placeholder="Vehicle Make"
           value={make}
           onChangeText={setMake}
           style={styles.input}
+          autoCapitalize="words"
+          editable={!loading}
         />
 
         <TextInput
@@ -136,15 +323,18 @@ export default function AddVehicleScreen() {
           value={model}
           onChangeText={setModel}
           style={styles.input}
+          autoCapitalize="words"
+          editable={!loading}
         />
 
         <TextInput
           placeholder="Year"
-          keyboardType="numeric"
           value={year}
           onChangeText={setYear}
           style={styles.input}
+          keyboardType="numeric"
           maxLength={4}
+          editable={!loading}
         />
 
         <TextInput
@@ -152,6 +342,8 @@ export default function AddVehicleScreen() {
           value={color}
           onChangeText={setColor}
           style={styles.input}
+          autoCapitalize="words"
+          editable={!loading}
         />
 
         <TextInput
@@ -160,21 +352,26 @@ export default function AddVehicleScreen() {
           onChangeText={setRegistrationNumber}
           style={styles.input}
           autoCapitalize="characters"
+          autoCorrect={false}
+          editable={!loading}
         />
 
         <TextInput
           placeholder="Seating Capacity"
-          keyboardType="numeric"
           value={seatingCapacity}
           onChangeText={setSeatingCapacity}
           style={styles.input}
+          keyboardType="numeric"
+          editable={!loading}
         />
 
         <TextInput
-          placeholder="Vehicle Type (Car / Auto / Bike)"
-          value={vehicleType}
-          onChangeText={setVehicleType}
+          placeholder="Category"
+          value={category}
+          onChangeText={setCategory}
           style={styles.input}
+          autoCapitalize="words"
+          editable={!loading}
         />
 
         <TouchableOpacity
@@ -185,16 +382,25 @@ export default function AddVehicleScreen() {
           onPress={handleAddVehicle}
           disabled={loading}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "Saving..." : "Add Vehicle"}
-          </Text>
+          {loading ? (
+            <ActivityIndicator
+              color="#FFFFFF"
+            />
+          ) : (
+            <Text style={styles.buttonText}>
+              Add Vehicle
+            </Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={styles.cancelButton}
           onPress={() => router.back()}
           disabled={loading}
         >
-          <Text style={styles.backText}>Cancel</Text>
+          <Text style={styles.cancelText}>
+            Cancel
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -204,55 +410,53 @@ export default function AddVehicleScreen() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F4F6F8",
+    backgroundColor: "#F5F6F8",
     padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   card: {
     width: "100%",
     maxWidth: 400,
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    borderRadius: 18,
     padding: 25,
-    elevation: 5,
-  },
-
-  logo: {
-    fontSize: 55,
-    textAlign: "center",
-    marginBottom: 10,
   },
 
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "bold",
     textAlign: "center",
+    marginBottom: 8,
   },
 
   subtitle: {
+    fontSize: 14,
+    color: "#777777",
     textAlign: "center",
-    color: "gray",
-    marginTop: 5,
-    marginBottom: 25,
+    marginBottom: 20,
   },
 
   input: {
+    width: "100%",
+    height: 52,
     borderWidth: 1,
-    borderColor: "#DDD",
+    borderColor: "#DDDDDD",
     borderRadius: 10,
-    padding: 14,
-    marginBottom: 15,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    backgroundColor: "#FFFFFF",
     fontSize: 16,
   },
 
   button: {
-    backgroundColor: "#0A84FF",
-    padding: 15,
+    height: 54,
+    backgroundColor: "#1687F8",
     borderRadius: 10,
     alignItems: "center",
-    marginTop: 10,
+    justifyContent: "center",
+    marginTop: 8,
   },
 
   buttonDisabled: {
@@ -261,14 +465,18 @@ const styles = StyleSheet.create({
 
   buttonText: {
     color: "#FFFFFF",
+    fontSize: 17,
     fontWeight: "bold",
-    fontSize: 18,
   },
 
-  backText: {
-    textAlign: "center",
-    color: "#0A84FF",
+  cancelButton: {
+    alignItems: "center",
     marginTop: 20,
-    fontWeight: "600",
+    paddingVertical: 10,
+  },
+
+  cancelText: {
+    color: "#0066FF",
+    fontSize: 15,
   },
 });

@@ -38,14 +38,13 @@ export default function DriverLoginScreen() {
   const handleLogin = async () => {
     const emailAddress = email.trim();
 
-    console.log("================================");
-    console.log("DRIVER LOGIN BUTTON PRESSED");
-    console.log("EMAIL:", emailAddress);
-    console.log("================================");
+    // -------------------------------
+    // VALIDATION
+    // -------------------------------
 
     if (!emailAddress) {
       Alert.alert(
-        "Login",
+        "Validation",
         "Please enter your email address."
       );
       return;
@@ -53,7 +52,7 @@ export default function DriverLoginScreen() {
 
     if (!password) {
       Alert.alert(
-        "Login",
+        "Validation",
         "Please enter your password."
       );
       return;
@@ -63,8 +62,13 @@ export default function DriverLoginScreen() {
       setLoading(true);
 
       console.log(
-        "Signing in with Firebase..."
+        "DRIVER LOGIN:",
+        emailAddress
       );
+
+      // -------------------------------
+      // FIREBASE LOGIN
+      // -------------------------------
 
       const userCredential =
         await signInWithEmailAndPassword(
@@ -73,46 +77,29 @@ export default function DriverLoginScreen() {
           password
         );
 
-      const user = userCredential.user;
+      const user =
+        userCredential.user;
 
       console.log(
-        "DRIVER LOGIN SUCCESS"
-      );
-
-      console.log(
-        "Driver UID:",
+        "DRIVER LOGIN SUCCESS:",
         user.uid
       );
 
       console.log(
-        "Driver Email:",
+        "DRIVER EMAIL:",
         user.email
       );
 
-      // Go to driver home
-      router.replace("/driver-home");
+      // -------------------------------
+      // GO TO DRIVER HOME
+      // -------------------------------
+
+      router.push("/driver-home");
 
     } catch (error: any) {
       console.log(
-        "================================"
-      );
-
-      console.log(
-        "DRIVER LOGIN ERROR"
-      );
-
-      console.log(
-        "ERROR CODE:",
-        error?.code
-      );
-
-      console.log(
-        "ERROR MESSAGE:",
-        error?.message
-      );
-
-      console.log(
-        "================================"
+        "DRIVER LOGIN ERROR:",
+        error
       );
 
       let message =
@@ -158,14 +145,12 @@ export default function DriverLoginScreen() {
           message =
             error?.message ||
             "Unable to login.";
-          break;
       }
 
       Alert.alert(
         "Login Failed",
         message
       );
-
     } finally {
       setLoading(false);
     }
@@ -176,34 +161,13 @@ export default function DriverLoginScreen() {
   // =====================================================
 
   const handleForgotPassword = async () => {
-    console.log(
-      "================================"
-    );
-
-    console.log(
-      "FORGOT PASSWORD BUTTON PRESSED"
-    );
-
-    console.log(
-      "EMAIL FIELD VALUE:",
-      email
-    );
-
-    console.log(
-      "================================"
-    );
-
     const emailAddress = email.trim();
 
-    // -----------------------------------------------------
-    // CHECK EMAIL
-    // -----------------------------------------------------
+    // -------------------------------
+    // VALIDATE EMAIL
+    // -------------------------------
 
     if (!emailAddress) {
-      console.log(
-        "NO EMAIL ENTERED"
-      );
-
       Alert.alert(
         "Forgot Password",
         "Please enter your email address first."
@@ -212,20 +176,17 @@ export default function DriverLoginScreen() {
       return;
     }
 
-    // -----------------------------------------------------
-    // SEND FIREBASE RESET EMAIL
-    // -----------------------------------------------------
-
     try {
       setResetLoading(true);
 
       console.log(
-        "Sending Firebase reset email to:"
-      );
-
-      console.log(
+        "Sending Firebase reset email to:",
         emailAddress
       );
+
+      // -------------------------------
+      // FIREBASE PASSWORD RESET
+      // -------------------------------
 
       await sendPasswordResetEmail(
         auth,
@@ -233,67 +194,32 @@ export default function DriverLoginScreen() {
       );
 
       console.log(
-        "================================"
-      );
-
-      console.log(
-        "PASSWORD RESET EMAIL SENT SUCCESSFULLY"
-      );
-
-      console.log(
-        "EMAIL:",
-        emailAddress
-      );
-
-      console.log(
-        "================================"
+        "PASSWORD RESET EMAIL SENT"
       );
 
       Alert.alert(
         "Password Reset",
-        "A password reset link has been sent to your email address. Please check your inbox and spam folder."
+        "A password reset link has been sent to your email address. Please check your inbox."
       );
 
     } catch (error: any) {
       console.log(
-        "================================"
-      );
-
-      console.log(
-        "FIREBASE PASSWORD RESET ERROR"
-      );
-
-      console.log(
-        "ERROR CODE:",
-        error?.code
-      );
-
-      console.log(
-        "ERROR MESSAGE:",
-        error?.message
-      );
-
-      console.log(
-        "FULL ERROR:",
+        "FIREBASE FORGOT PASSWORD ERROR:",
         error
-      );
-
-      console.log(
-        "================================"
       );
 
       let message =
         "Unable to send password reset email.";
 
       switch (error?.code) {
+        case "auth/user-not-found":
+          message =
+            "No driver account was found with this email.";
+          break;
+
         case "auth/invalid-email":
           message =
             "Please enter a valid email address.";
-          break;
-
-        case "auth/user-not-found":
-          message =
-            "No account was found with this email address.";
           break;
 
         case "auth/too-many-requests":
@@ -306,29 +232,19 @@ export default function DriverLoginScreen() {
             "Network error. Please check your internet connection.";
           break;
 
-        case "auth/operation-not-allowed":
-          message =
-            "Email/password authentication is not enabled in Firebase.";
-          break;
-
         default:
           message =
             error?.message ||
             "Unable to send password reset email.";
-          break;
       }
 
       Alert.alert(
-        "Password Reset",
+        "Forgot Password",
         message
       );
 
     } finally {
       setResetLoading(false);
-
-      console.log(
-        "FORGOT PASSWORD PROCESS FINISHED"
-      );
     }
   };
 
@@ -337,10 +253,6 @@ export default function DriverLoginScreen() {
   // =====================================================
 
   const handleRegister = () => {
-    console.log(
-      "REGISTER BUTTON PRESSED"
-    );
-
     router.push("/register");
   };
 
@@ -365,17 +277,13 @@ export default function DriverLoginScreen() {
       >
         <View style={styles.card}>
 
-          {/* =================================================
-              LOGO
-          ================================================= */}
+          {/* LOGO */}
 
           <Text style={styles.logo}>
             🚖
           </Text>
 
-          {/* =================================================
-              TITLE
-          ================================================= */}
+          {/* TITLE */}
 
           <Text style={styles.title}>
             Driver Login
@@ -385,27 +293,17 @@ export default function DriverLoginScreen() {
             Sign in to your driver account
           </Text>
 
-          {/* =================================================
-              EMAIL
-          ================================================= */}
+          {/* EMAIL */}
 
           <Text style={styles.label}>
             Email
           </Text>
 
           <TextInput
-            style={styles.input}
             placeholder="Enter your email"
-            placeholderTextColor="#999"
             value={email}
-            onChangeText={(text) => {
-              console.log(
-                "EMAIL CHANGED:",
-                text
-              );
-
-              setEmail(text);
-            }}
+            onChangeText={setEmail}
+            style={styles.input}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -415,71 +313,65 @@ export default function DriverLoginScreen() {
             }
           />
 
-          {/* =================================================
-              PASSWORD
-          ================================================= */}
+          {/* PASSWORD */}
 
           <Text style={styles.label}>
             Password
           </Text>
 
           <TextInput
-            style={styles.input}
             placeholder="Enter your password"
-            placeholderTextColor="#999"
             value={password}
             onChangeText={setPassword}
+            style={styles.input}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
             editable={!loading}
           />
 
-          {/* =================================================
-              FORGOT PASSWORD
-          ================================================= */}
+          {/* FORGOT PASSWORD */}
 
           <TouchableOpacity
             style={styles.forgotButton}
-            onPress={() => {
-              console.log(
-                "FORGOT PASSWORD TOUCH DETECTED"
-              );
-
-              handleForgotPassword();
-            }}
+            onPress={
+              handleForgotPassword
+            }
             disabled={
               loading ||
               resetLoading
             }
-            activeOpacity={0.6}
           >
             {resetLoading ? (
-              <View style={styles.loadingRow}>
-
+              <View
+                style={
+                  styles.loadingRow
+                }
+              >
                 <ActivityIndicator
                   size="small"
                 />
 
                 <Text
-                  style={styles.forgotText}
+                  style={
+                    styles.forgotText
+                  }
                 >
                   Sending...
                 </Text>
-
               </View>
             ) : (
               <Text
-                style={styles.forgotText}
+                style={
+                  styles.forgotText
+                }
               >
                 Forgot Password?
               </Text>
             )}
           </TouchableOpacity>
 
-          {/* =================================================
-              LOGIN BUTTON
-          ================================================= */}
+          {/* LOGIN BUTTON */}
 
           <TouchableOpacity
             style={[
@@ -492,11 +384,13 @@ export default function DriverLoginScreen() {
               loading ||
               resetLoading
             }
-            activeOpacity={0.7}
           >
             {loading ? (
-              <View style={styles.loadingRow}>
-
+              <View
+                style={
+                  styles.loadingRow
+                }
+              >
                 <ActivityIndicator
                   color="#fff"
                   size="small"
@@ -509,7 +403,6 @@ export default function DriverLoginScreen() {
                 >
                   Logging in...
                 </Text>
-
               </View>
             ) : (
               <Text
@@ -522,9 +415,7 @@ export default function DriverLoginScreen() {
             )}
           </TouchableOpacity>
 
-          {/* =================================================
-              REGISTER
-          ================================================= */}
+          {/* REGISTER */}
 
           <View
             style={
@@ -545,7 +436,6 @@ export default function DriverLoginScreen() {
                 loading ||
                 resetLoading
               }
-              activeOpacity={0.7}
             >
               <Text
                 style={
@@ -583,7 +473,7 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 400,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#fff",
     borderRadius: 20,
     padding: 25,
 
@@ -628,22 +518,18 @@ const styles = StyleSheet.create({
 
   input: {
     borderWidth: 1,
-    borderColor: "#DDDDDD",
+    borderColor: "#ddd",
     borderRadius: 10,
     padding: 14,
     marginBottom: 16,
     fontSize: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#fff",
   },
 
   forgotButton: {
     alignSelf: "flex-end",
     marginTop: -5,
     marginBottom: 20,
-
-    // Makes the clickable area slightly larger
-    paddingVertical: 8,
-    paddingHorizontal: 8,
   },
 
   forgotText: {
@@ -664,7 +550,7 @@ const styles = StyleSheet.create({
   },
 
   loginButtonText: {
-    color: "#FFFFFF",
+    color: "#fff",
     fontWeight: "bold",
     fontSize: 18,
   },
@@ -681,7 +567,7 @@ const styles = StyleSheet.create({
   },
 
   registerLabel: {
-    color: "#666666",
+    color: "#666",
     fontSize: 14,
     marginBottom: 8,
   },
