@@ -1,23 +1,21 @@
+import {
+  collection,
+  getDocs,
+  query,
+  where
+} from "firebase/firestore";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-} from "firebase/firestore";
-import { auth, db } from "../services/firebase";
+import { auth, db } from "../../services/firebase";
 
 type RidePayment = {
   id: string;
