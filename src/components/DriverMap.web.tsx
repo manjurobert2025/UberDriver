@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from "react";
 
 type Props = {
@@ -16,39 +17,22 @@ export default function DriverMap({
   const markerRef = useRef<any>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
     let cancelled = false;
 
     const loadMap = async () => {
       try {
         const leafletModule = await import("leaflet");
-
         const L = leafletModule.default;
 
-        if (
-          cancelled ||
-          !mapContainerRef.current
-        ) {
+        if (cancelled || !mapContainerRef.current) {
           return;
         }
 
-        /*
-         * Create map only once
-         */
         if (!mapRef.current) {
           mapRef.current = L.map(
             mapContainerRef.current
-          ).setView(
-            [latitude, longitude],
-            15
-          );
+          ).setView([latitude, longitude], 15);
 
-          /*
-           * OpenStreetMap
-           */
           L.tileLayer(
             "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
             {
@@ -58,49 +42,29 @@ export default function DriverMap({
             }
           ).addTo(mapRef.current);
 
-          /*
-           * Driver location marker
-           *
-           * Using circleMarker means we don't
-           * need Leaflet's image icons.
-           */
-          markerRef.current =
-            L.circleMarker(
-              [latitude, longitude],
-              {
-                radius: 10,
-                weight: 3,
-                fillOpacity: 0.8,
-              }
-            ).addTo(mapRef.current);
+          markerRef.current = L.circleMarker(
+            [latitude, longitude],
+            {
+              radius: 10,
+              weight: 3,
+              fillOpacity: 0.8,
+            }
+          ).addTo(mapRef.current);
 
-          markerRef.current.bindPopup(
-            "Driver Location"
-          );
+          markerRef.current.bindPopup("Driver Location");
         } else {
-          /*
-           * Update map position
-           */
           mapRef.current.setView(
             [latitude, longitude],
             15
           );
 
-          /*
-           * Update driver marker
-           */
-          if (markerRef.current) {
-            markerRef.current.setLatLng([
-              latitude,
-              longitude,
-            ]);
-          }
+          markerRef.current?.setLatLng([
+            latitude,
+            longitude,
+          ]);
         }
       } catch (error) {
-        console.error(
-          "Leaflet map error:",
-          error
-        );
+        console.error("Leaflet map error:", error);
       }
     };
 
@@ -111,9 +75,6 @@ export default function DriverMap({
     };
   }, [latitude, longitude]);
 
-  /*
-   * Cleanup map when component is removed
-   */
   useEffect(() => {
     return () => {
       if (mapRef.current) {
