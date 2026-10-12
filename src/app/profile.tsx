@@ -1,19 +1,18 @@
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 export default function ProfileScreen() {
-
   const logout = async () => {
     try {
       await AsyncStorage.removeItem("token");
       await AsyncStorage.removeItem("driverId");
-
       router.replace("/");
     } catch (error) {
       console.log("Logout error:", error);
@@ -21,28 +20,35 @@ export default function ProfileScreen() {
     }
   };
 
+  const editDriverDetails = () => {
+    router.push("/EditDriverDetailsScreen" as any);
+  };
+
   return (
     <View style={styles.container}>
-
       <Text style={styles.icon}>👤</Text>
 
-      <Text style={styles.title}>
-        Driver Profile
-      </Text>
+      <Text style={styles.title}>Driver Profile</Text>
 
       <Text style={styles.subtitle}>
         Manage your driver account
       </Text>
 
       <Pressable
-        style={styles.logoutButton}
-        onPress={logout}
+        style={styles.editButton}
+        onPress={editDriverDetails}
       >
-        <Text style={styles.logoutText}>
-          LOGOUT
+        <Text style={styles.editText}>
+          EDIT DRIVER DETAILS
         </Text>
       </Pressable>
 
+      <Pressable
+        style={styles.logoutButton}
+        onPress={logout}
+      >
+        <Text style={styles.logoutText}>LOGOUT</Text>
+      </Pressable>
     </View>
   );
 }
@@ -54,19 +60,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 25,
   },
-
   icon: {
     fontSize: 60,
     textAlign: "center",
     marginBottom: 15,
   },
-
   title: {
     fontSize: 28,
     fontWeight: "bold",
     textAlign: "center",
   },
-
   subtitle: {
     fontSize: 15,
     color: "#666",
@@ -74,14 +77,24 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 40,
   },
-
+  editButton: {
+    backgroundColor: "#1769aa",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  editText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
   logoutButton: {
     backgroundColor: "#000",
     padding: 16,
     borderRadius: 12,
     alignItems: "center",
   },
-
   logoutText: {
     color: "#fff",
     fontSize: 17,

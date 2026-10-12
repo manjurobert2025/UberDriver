@@ -2,11 +2,10 @@ import axios from "axios";
 
 import { router, useLocalSearchParams } from "expo-router";
 
-import { doc, onSnapshot } from "firebase/firestore";
-
 import { useEffect, useState } from "react";
 
 import {
+  Alert,
   Pressable,
 
   SafeAreaView,
@@ -20,15 +19,17 @@ import {
   View
 } from "react-native";
 
-
-
 import { db } from "../../services/firebase";
 
+import {
+  doc,
 
+  onSnapshot,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 
 const API_URL = "https://localhost:7197/api";
-
-
 
 const RideProgressScreen = () => {
 
@@ -44,19 +45,13 @@ const RideProgressScreen = () => {
 
     }>();
 
-
-
   const [rideStatus, setRideStatus] = useState("");
-
-
 
   // -----------------------------------
 
   // FIREBASE RIDE STATUS LISTENER
 
   // -----------------------------------
-
-
 
   useEffect(() => {
 
@@ -66,17 +61,11 @@ const RideProgressScreen = () => {
 
     }
 
-
-
     console.log("🔥 Starting Firestore ride listener");
 
     console.log("Ride ID:", rideId);
 
-
-
     const rideRef = doc(db, "rides", rideId);
-
-
 
     const unsubscribe = onSnapshot(
 
@@ -92,17 +81,11 @@ const RideProgressScreen = () => {
 
         }
 
-
-
         const rideData = snapshot.data();
-
-
 
         console.log("🔥 Firestore ride update:", rideData);
 
         console.log("🔥 Ride status:", rideData.status);
-
-
 
         switch (rideData.status) {
 
@@ -112,15 +95,11 @@ const RideProgressScreen = () => {
 
             break;
 
-
-
           case "accepted":
 
             setRideStatus("Accepted");
 
             break;
-
-
 
           case "driverArrived":
 
@@ -128,15 +107,11 @@ const RideProgressScreen = () => {
 
             break;
 
-
-
           case "inProgress":
 
             setRideStatus("InProgress");
 
             break;
-
-
 
           case "completed":
 
@@ -144,23 +119,17 @@ const RideProgressScreen = () => {
 
             break;
 
-
-
           case "cancelled":
 
             setRideStatus("Cancelled");
 
             break;
 
-
-
           case "rejected":
 
             setRideStatus("Rejected");
 
             break;
-
-
 
           default:
 
@@ -186,8 +155,6 @@ const RideProgressScreen = () => {
 
     );
 
-
-
     return () => {
 
       console.log("🔥 Stopping Firestore ride listener");
@@ -198,15 +165,11 @@ const RideProgressScreen = () => {
 
   }, [rideId]);
 
-
-
   // -----------------------------------
 
   // START RIDE
 
   // -----------------------------------
-
-
 
   const handleStartRide = async () => {
 
@@ -216,15 +179,11 @@ const RideProgressScreen = () => {
 
       console.log("RideId:", rideId);
 
-
-
       const response = await axios.post(
 
         `${API_URL}/Ride/${rideId}/start`
 
       );
-
-
 
       console.log(
 
@@ -234,13 +193,9 @@ const RideProgressScreen = () => {
 
       );
 
-
-
       // Update local UI after backend succeeds
 
       setRideStatus("InProgress");
-
-
 
       alert("Ride started successfully");
 
@@ -254,8 +209,6 @@ const RideProgressScreen = () => {
 
       );
 
-
-
       if (error.response) {
 
         console.log(
@@ -266,8 +219,6 @@ const RideProgressScreen = () => {
 
         );
 
-
-
         console.log(
 
           "Data:",
@@ -277,8 +228,6 @@ const RideProgressScreen = () => {
         );
 
       }
-
-
 
       alert("Unable to start ride");
 
@@ -286,119 +235,57 @@ const RideProgressScreen = () => {
 
   };
 
-
-
   // -----------------------------------
 
   // COMPLETE RIDE
 
   // -----------------------------------
 
+const handleCompleteRide = async () => {
+  if (!rideId) {
+    Alert.alert("Error", "Ride ID is missing.");
+    return;
+  }
 
+  try {
+    console.log("COMPLETE RIDE clicked", rideId);
 
-  const handleCompleteRide = async () => {
+    // Complete the ride through the existing .NET API first.
+    const response = await axios.post(`${API_URL}/Ride/${rideId}/complete`);
+    console.log("Complete ride response:", response.data);
 
-    try {
+    // Keep payment pending until payment is actually verified.
+    await updateDoc(doc(db, "rides", String(rideId)), {
+      status: "completed",
+      paymentStatus: "pending",
+      completedAt: serverTimestamp(),
+    });
 
-      console.log(
+    setRideStatus("Completed");
 
-        "COMPLETE RIDE clicked"
+    // Open the driver's payment screen. It can load the fare by rideId.
+    router.push({
+      pathname: "/DriverPaymentsScreen",
+      params: { rideId: String(rideId) },
+    });
+  } catch (error: any) {
+    console.error("COMPLETE RIDE ERROR:", error);
 
-      );
-
-
-
-      console.log(
-
-        "RideId:",
-
-        rideId
-
-      );
-
-
-
-      const response = await axios.post(
-
-        `${API_URL}/Ride/${rideId}/complete`
-
-      );
-
-
-
-      console.log(
-
-        "Complete ride response:",
-
-        response.data
-
-      );
-
-
-
-      // Update local UI after backend succeeds
-      setRideStatus("Completed");
-
-      alert("Ride completed successfully");
-
-      // Navigate to Driver Payments & Earnings after successful completion
-      router.replace("/DriverPaymentsScreen");
-
-    } catch (error: any) {
-
-      console.log(
-
-        "Complete ride error:",
-
-        error
-
-      );
-
-
-
-      if (error.response) {
-
-        console.log(
-
-          "Status:",
-
-          error.response.status
-
-        );
-
-
-
-        console.log(
-
-          "Data:",
-
-          error.response.data
-
-        );
-
-      }
-
-
-
-      alert(
-
-        "Unable to complete ride"
-
-      );
-
+    if (error?.response) {
+      console.error("API status:", error.response.status);
+      console.error("API response:", error.response.data);
     }
 
-  };
-
-
-
-  // -----------------------------------
+    Alert.alert(
+      "Error",
+      "Unable to complete the ride. Please try again."
+    );
+  }
+};
 
   // STATUS TEXT
 
   // -----------------------------------
-
-
 
   const getStatusText = () => {
 
@@ -408,43 +295,29 @@ const RideProgressScreen = () => {
 
         return "RIDE REQUESTED";
 
-
-
       case "Accepted":
 
         return "RIDE ACCEPTED";
-
-
 
       case "DriverArrived":
 
         return "DRIVER ARRIVED";
 
-
-
       case "InProgress":
 
         return "RIDE IN PROGRESS";
-
-
 
       case "Completed":
 
         return "TRIP COMPLETED";
 
-
-
       case "Cancelled":
 
         return "RIDE CANCELLED";
 
-
-
       case "Rejected":
 
         return "RIDE REJECTED";
-
-
 
       default:
 
@@ -454,13 +327,9 @@ const RideProgressScreen = () => {
 
   };
 
-
-
   return (
 
     <SafeAreaView style={styles.container}>
-
-
 
       {/* Header */}
 
@@ -474,13 +343,9 @@ const RideProgressScreen = () => {
 
       </View>
 
-
-
       {/* Bottom Navigation */}
 
       <View style={styles.bottomNav}>
-
-
 
         <Pressable
 
@@ -496,8 +361,6 @@ const RideProgressScreen = () => {
 
           </Text>
 
-
-
           <Text style={styles.navText}>
 
             Home
@@ -505,8 +368,6 @@ const RideProgressScreen = () => {
           </Text>
 
         </Pressable>
-
-
 
         <Pressable
 
@@ -526,8 +387,6 @@ const RideProgressScreen = () => {
 
           </Text>
 
-
-
           <Text style={styles.navText}>
 
             Profile
@@ -536,11 +395,7 @@ const RideProgressScreen = () => {
 
         </Pressable>
 
-
-
       </View>
-
-
 
       {/* Status */}
 
@@ -554,13 +409,9 @@ const RideProgressScreen = () => {
 
       </View>
 
-
-
       {/* Location Card */}
 
       <View style={styles.card}>
-
-
 
         <Text style={styles.label}>
 
@@ -568,15 +419,9 @@ const RideProgressScreen = () => {
 
         </Text>
 
-
-
         <View style={styles.locationRow}>
 
-
-
           <View style={styles.dot} />
-
-
 
           <Text style={styles.locationText}>
 
@@ -586,15 +431,9 @@ const RideProgressScreen = () => {
 
           </Text>
 
-
-
         </View>
 
-
-
         <View style={styles.line} />
-
-
 
         <Text style={styles.label}>
 
@@ -602,11 +441,7 @@ const RideProgressScreen = () => {
 
         </Text>
 
-
-
         <View style={styles.locationRow}>
-
-
 
           <View
 
@@ -618,8 +453,6 @@ const RideProgressScreen = () => {
 
           />
 
-
-
           <Text style={styles.locationText}>
 
             {destination ||
@@ -628,29 +461,19 @@ const RideProgressScreen = () => {
 
           </Text>
 
-
-
         </View>
 
-
-
       </View>
-
-
 
       {/* Progress */}
 
       <View style={styles.progressCard}>
-
-
 
         <Text style={styles.sectionTitle}>
 
           Trip Status
 
         </Text>
-
-
 
         {/* Request received */}
 
@@ -659,8 +482,6 @@ const RideProgressScreen = () => {
           ✓ Request received
 
         </Text>
-
-
 
         {/* Ride accepted */}
 
@@ -712,8 +533,6 @@ const RideProgressScreen = () => {
 
         </Text>
 
-
-
         {/* Driver arrived */}
 
         <Text
@@ -760,8 +579,6 @@ const RideProgressScreen = () => {
 
         </Text>
 
-
-
         {/* Ride started */}
 
         <Text
@@ -800,8 +617,6 @@ const RideProgressScreen = () => {
 
         </Text>
 
-
-
         {/* Trip completed */}
 
         <Text
@@ -832,11 +647,7 @@ const RideProgressScreen = () => {
 
         </Text>
 
-
-
       </View>
-
-
 
       {/* Complete Ride Button */}
 
@@ -872,19 +683,13 @@ const RideProgressScreen = () => {
 
       )}
 
-
-
     </SafeAreaView>
 
   );
 
 };
 
-
-
 export default RideProgressScreen;
-
-
 
 // -----------------------------------
 
@@ -892,11 +697,7 @@ export default RideProgressScreen;
 
 // -----------------------------------
 
-
-
 const styles = StyleSheet.create({
-
-
 
   container: {
 
@@ -908,8 +709,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   header: {
 
     alignItems: "center",
@@ -917,8 +716,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
 
   },
-
-
 
   headerTitle: {
 
@@ -929,8 +726,6 @@ const styles = StyleSheet.create({
     color: "#111",
 
   },
-
-
 
   statusContainer: {
 
@@ -948,8 +743,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   statusText: {
 
     fontSize: 13,
@@ -960,8 +753,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   card: {
 
     backgroundColor: "#FFF",
@@ -971,8 +762,6 @@ const styles = StyleSheet.create({
     padding: 20,
 
     marginBottom: 20,
-
-
 
     shadowColor: "#000",
 
@@ -988,13 +777,9 @@ const styles = StyleSheet.create({
 
     },
 
-
-
     elevation: 3,
 
   },
-
-
 
   label: {
 
@@ -1008,8 +793,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   locationRow: {
 
     flexDirection: "row",
@@ -1017,8 +800,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
 
   },
-
-
 
   dot: {
 
@@ -1034,8 +815,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   destinationDot: {
 
     width: 12,
@@ -1050,8 +829,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   locationText: {
 
     fontSize: 16,
@@ -1063,8 +840,6 @@ const styles = StyleSheet.create({
     flex: 1,
 
   },
-
-
 
   line: {
 
@@ -1079,8 +854,6 @@ const styles = StyleSheet.create({
     marginVertical: 5,
 
   },
-
-
 
   bottomNav: {
 
@@ -1100,8 +873,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   navButton: {
 
     flex: 1,
@@ -1109,8 +880,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
 
   },
-
-
 
   navIcon: {
 
@@ -1120,8 +889,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   navText: {
 
     fontSize: 14,
@@ -1129,8 +896,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
 
   },
-
-
 
   progressCard: {
 
@@ -1142,8 +907,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   sectionTitle: {
 
     fontSize: 17,
@@ -1153,8 +916,6 @@ const styles = StyleSheet.create({
     marginBottom: 18,
 
   },
-
-
 
   completedStep: {
 
@@ -1168,8 +929,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   pendingStep: {
 
     fontSize: 15,
@@ -1180,8 +939,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   bottomContainer: {
 
     marginTop: 20,
@@ -1189,8 +946,6 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
 
   },
-
-
 
   primaryButton: {
 
@@ -1206,8 +961,6 @@ const styles = StyleSheet.create({
 
   },
 
-
-
   buttonText: {
 
     color: "#FFF",
@@ -1217,7 +970,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
 
   },
-
-
 
 });
